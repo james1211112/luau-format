@@ -11,7 +11,7 @@ include(FetchContent)
 FetchContent_Declare(
     luau
     GIT_REPOSITORY https://github.com/luau-lang/luau.git
-    GIT_TAG        0.630
+    GIT_TAG        0.739
 )
 FetchContent_MakeAvailable(luau)
 
@@ -32,6 +32,3 @@ target_link_libraries(luau-format PRIVATE
     Luau.VM
 )
 
-target_compile_options(Luau.Analysis PRIVATE
-    -include cstdint
-)

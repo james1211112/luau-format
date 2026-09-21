@@ -48,7 +48,7 @@ int main() {
         0,
         AstName("func")
     );
-    AstExprUnary* expr_unary = allocator.alloc<AstExprUnary>(location, AstExprUnary::Not, expr_local);
+    AstExprUnary* expr_unary = allocator.alloc<AstExprUnary>(location, AstExprUnary::Op::Not, expr_local);
 
     auto expr_array_vector = std::vector<AstExpr*>() = { expr_local, expr_global, };
     auto ast_array_expr = copy(allocator, expr_array_vector.data(), expr_array_vector.size());
@@ -69,10 +69,10 @@ int main() {
         .expr_constant_number_100 = allocator.alloc<AstExprConstantNumber>(location, 100),
         .expr_constant_number_negative_100 = allocator.alloc<AstExprConstantNumber>(location, -100),
 
-        .expr_constant_string_foo = allocator.alloc<AstExprConstantString>(location, cstringToAstCharArray("foo")),
-        .expr_constant_string_bar = allocator.alloc<AstExprConstantString>(location, cstringToAstCharArray("bar")),
-        .expr_constant_string_foo_zero_bytes_bar = allocator.alloc<AstExprConstantString>(location, foo_zero_bytes_bar_char_array),
-        .expr_constant_string_100 = allocator.alloc<AstExprConstantString>(location, cstringToAstCharArray("100")),
+        .expr_constant_string_foo = allocator.alloc<AstExprConstantString>(location, cstringToAstCharArray("foo"), AstExprConstantString::QuoteStyle::QuotedSimple),
+        .expr_constant_string_bar = allocator.alloc<AstExprConstantString>(location, cstringToAstCharArray("bar"), AstExprConstantString::QuoteStyle::QuotedSimple),
+        .expr_constant_string_foo_zero_bytes_bar = allocator.alloc<AstExprConstantString>(location, foo_zero_bytes_bar_char_array, AstExprConstantString::QuoteStyle::QuotedSimple),
+        .expr_constant_string_100 = allocator.alloc<AstExprConstantString>(location, cstringToAstCharArray("100"), AstExprConstantString::QuoteStyle::QuotedSimple),
 
         .expr_local = expr_local,
         .expr_global = expr_global,

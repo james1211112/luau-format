@@ -283,7 +283,7 @@ std::string convertNumber(double value) {
 
     if (result == "inf")
         result = "math.huge";
-    else if (result == "nan" or result == "-nan")
+    else if (result == "nan" || result == "-nan")
         result = "(0/0)";
     else {
         while (result.length() > 2 && result[result.length() - 1] == '0')
@@ -503,10 +503,10 @@ std::optional<SimpleAssign> getSimpleAssign(AstStat* stat, bool can_have_no_valu
         auto& local = var->local;
 
         return SimpleAssign{
-            .var = local->name.value,
-            .var_local = local,
-            .value = has_value ? value_list.data[0] : nullptr
-        };
+    local->name.value,
+    local,
+    has_value ? value_list.data[0] : nullptr
+};
     } else if (auto stat_as_local = stat->as<AstStatLocal>()) {
         auto& var_list = stat_as_local->vars;
         auto& value_list = stat_as_local->values;
@@ -526,10 +526,10 @@ std::optional<SimpleAssign> getSimpleAssign(AstStat* stat, bool can_have_no_valu
         auto& local = var_list.data[0];
 
         return SimpleAssign{
-            .var = local->name.value,
-            .var_local = local,
-            .value = has_value ? value_list.data[0] : nullptr
-        };
+    local->name.value,
+    local,
+    has_value ? value_list.data[0] : nullptr
+};
     }
 
     return std::nullopt;
@@ -543,9 +543,12 @@ std::optional<Condition> Condition::tryCreateCondition(AstSimplifier& simplifier
     result.op = expr_binary->op;
     result.flipped = false;
 
-    if (!(result.op == AstExprBinary::CompareNe or result.op == AstExprBinary::CompareEq or result.op == AstExprBinary::CompareLt
-        or result.op == AstExprBinary::CompareLe or result.op == AstExprBinary::CompareGt or result.op == AstExprBinary::CompareGe
-    ))
+    if (!(result.op == AstExprBinary::CompareNe ||
+      result.op == AstExprBinary::CompareEq ||
+      result.op == AstExprBinary::CompareLt ||
+      result.op == AstExprBinary::CompareLe ||
+      result.op == AstExprBinary::CompareGt ||
+      result.op == AstExprBinary::CompareGe))
         return std::nullopt;
 
     auto left = simplifier.simplify(expr_binary->left);
@@ -678,7 +681,7 @@ bool RecordTableReplaceVisitor::visit(AstStatBlock* root_block) {
         bool passes = items.size > 0;
         for (size_t j = 0; j < items.size; j++) {
             auto& item = items.data[j];
-            if (item.kind != Luau::AstExprTable::Item::Record) {
+            if (item.kind != Luau::AstExprTable::Item::Kind::Record) {
                 passes = false;
                 break;
             }
@@ -750,7 +753,7 @@ bool ListTableReplaceVisitor::visit(AstStatBlock* root_block) {
         bool passes = items.size > 0;
         for (size_t ti = 0; ti < items.size; ti++) {
             auto item = &items.data[ti];
-            if (item->kind != Luau::AstExprTable::Item::List) {
+            if (item->kind != Luau::AstExprTable::Item::Kind::List) {
                 passes = false;
                 break;
             }
@@ -813,7 +816,7 @@ AstExpr* SimplifyResult::toExpr() {
         case Number:
             return simplifier->getAllocator().alloc<AstExprConstantNumber>(Location(), number_value);
         case String:
-            return simplifier->getAllocator().alloc<AstExprConstantString>(Location(), string_value);
+            return simplifier->getAllocator().alloc<AstExprConstantString>(Location(), string_value, AstExprConstantString::QuoteStyle::QuotedSimple);
         case Other:
             return other_value;
     }
@@ -942,7 +945,7 @@ std::optional<size_t> AstSimplifier::getTableSize(AstExprTable* table) {
 
     for (unsigned index = 0; index < items.size; index++) {
         auto& item = items.data[index];
-        if (item.kind != AstExprTable::Item::List)
+        if (item.kind != AstExprTable::Item::Kind::List)
             return std::nullopt;
 
         list.push_back(item.value);
@@ -1272,7 +1275,7 @@ SimplifyResult AstSimplifier::simplify(AstExpr* expr, simplifyHook hook, void* h
     } else if (auto expr_unary = expr->as<AstExprUnary>()) {
         auto expr_simplified = simplify(expr_unary->expr, hook, hook_data);
         switch (expr_unary->op) {
-            case AstExprUnary::Not: {
+            case AstExprUnary::Op::Not: {
                 switch (expr_simplified.type) {
                     case SimplifyResult::Nil:
                         return SimplifyResult(this, true, group);
@@ -1297,11 +1300,11 @@ SimplifyResult AstSimplifier::simplify(AstExpr* expr, simplifyHook hook, void* h
                 }
                 break;
             }
-            case AstExprUnary::Minus:
+            case AstExprUnary::Op::Minus:
                 if (expr_simplified.type == SimplifyResult::Number)
                     return SimplifyResult(this, -expr_simplified.number_value, group);
                 break;
-            case AstExprUnary::Len:
+            case AstExprUnary::Op::Len:
                 switch (expr_simplified.type) {
                     case SimplifyResult::String:
                         return SimplifyResult(this, (double) expr_simplified.string_value.size, group);

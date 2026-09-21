@@ -408,7 +408,7 @@ public:
     bool visit(AstStatDeclareGlobal*) override {
         return false;
     }
-    bool visit(AstStatDeclareClass*) override {
+    bool visit(AstStatClass*) override {
         return false;
     }
     bool visit(AstStatError*) override {
@@ -514,13 +514,13 @@ std::optional<std::string> AstFormatter::formatExpr(AstExpr* main_expr) {
                     appendIndents(result);
                     auto& item = main_expr_as_table->items.data[i];
                     switch (item.kind) {
-                        case AstExprTable::Item::List:
+                        case AstExprTable::Item::Kind::List:
                             break;
-                        case AstExprTable::Item::Record:
+                        case AstExprTable::Item::Kind::Record:
                             appendStr(result, std::string(item.key->as<AstExprConstantString>()->value.data)
                                 .append(separators.equals));
                             break;
-                        case AstExprTable::Item::General:
+                        case AstExprTable::Item::Kind::General:
                             appendChar(result, '[');
                             appendNode(item.key, std::string("table->items.data[").append(convertNumber(i)).append("].key"))
                             appendChar(result, ']');
@@ -540,7 +540,7 @@ std::optional<std::string> AstFormatter::formatExpr(AstExpr* main_expr) {
 
         appendChar(result, '}');
     } else if (auto main_expr_as_unary = main_expr->as<AstExprUnary>()) {
-        appendStr(result, expr_unary_op_strings[main_expr_as_unary->op]);
+        appendStr(result, expr_unary_op_strings[static_cast<size_t>(main_expr_as_unary->op)]);
         appendNode(main_expr_as_unary->expr, "unary->expr")
     } else if (auto main_expr_as_binary = main_expr->as<AstExprBinary>()) {
         appendNode(main_expr_as_binary->left, "binary->left")
@@ -554,7 +554,7 @@ std::optional<std::string> AstFormatter::formatExpr(AstExpr* main_expr) {
         }
 
         if (options.output_type == FormatOptions::Minified && main_expr_as_binary->op == Luau::AstExprBinary::Sub &&
-            (main_expr_as_binary->right->is<AstExprUnary>() && main_expr_as_binary->right->as<AstExprUnary>()->op == Luau::AstExprUnary::Minus))
+            (main_expr_as_binary->right->is<AstExprUnary>() && main_expr_as_binary->right->as<AstExprUnary>()->op == Luau::AstExprUnary::Op::Minus))
         {
             close_sep = " ";
         }
@@ -803,7 +803,7 @@ std::optional<std::string> AstFormatter::formatStat(AstStat* main_stat) {
     } else if (auto main_stat_as_expr = main_stat->as<AstStatExpr>()) {
         appendNode(main_stat_as_expr->expr, "expr->expr")
     } else if (auto main_stat_as_local = main_stat->as<AstStatLocal>()) {
-        appendStr(result, "local ");
+        appendStr(result, main_stat_as_local->isConst ? "const " : "local ");
 
         auto& value_list = main_stat_as_local->values;
 

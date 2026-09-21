@@ -99,7 +99,7 @@ uint8_t testSimplifier(TestState& state) {
     endTest(simplify_constant_bool)
 
     #define testUnaryNot(expr, expr_text, result_type, result_type_member, expected_value, expected_value_text) { \
-        AstExpr* expr_unary = allocator.alloc<AstExprUnary>(location, AstExprUnary::Not, expr); \
+        AstExpr* expr_unary = allocator.alloc<AstExprUnary>(location, AstExprUnary::Op::Not, expr); \
         auto simplified = simplifier.simplify(expr_unary); \
         setContext("simplify on a " expr_text) \
         expect(equals(simplified.type, SimplifyResult::result_type), "%s did not return a SimplifyResult of type " #result_type) \
@@ -116,7 +116,7 @@ uint8_t testSimplifier(TestState& state) {
 
         testUnaryNot(state.expr_constant_bool_false, "unary not with expr constant bool (false)", Bool, bool_value, true, "the opposite value (true)")
 
-        testUnaryNot(allocator.alloc<AstExprUnary>(location, AstExprUnary::Not, state.expr_constant_bool_false), "nested unary not with expr constant bool (false)", Bool, bool_value, false, "the same value (false)")
+        testUnaryNot(allocator.alloc<AstExprUnary>(location, AstExprUnary::Op::Not, state.expr_constant_bool_false), "nested unary not with expr constant bool (false)", Bool, bool_value, false, "the same value (false)")
     }
     endTest(simplify_unary_not_bool)
 
@@ -152,7 +152,7 @@ uint8_t testSimplifier(TestState& state) {
 
     startTest(simplify_unary_minus) {
         auto simplified = simplifier.simplify(allocator.alloc<AstExprUnary>(
-            location, AstExprUnary::Minus,
+            location, AstExprUnary::Op::Minus,
             state.expr_constant_number_100
         ));
         setContext("simplify on a unary minus with constant number (100)")
@@ -160,7 +160,7 @@ uint8_t testSimplifier(TestState& state) {
         expect(equals(simplified.number_value, -100), "%s did not return a SimplifyResult with the negated value (-100)")
 
         simplified = simplifier.simplify(allocator.alloc<AstExprUnary>(
-            location, AstExprUnary::Minus,
+            location, AstExprUnary::Op::Minus,
             state.expr_constant_number_negative_100
         ));
         setContext("simplify on a unary minus with constant number (-100)")
@@ -172,7 +172,7 @@ uint8_t testSimplifier(TestState& state) {
     startTest(simplify_unary_len) {
         // normal string
         auto simplified = simplifier.simplify(allocator.alloc<AstExprUnary>(
-            location, AstExprUnary::Len,
+            location, AstExprUnary::Op::Len,
             state.expr_constant_string_foo
         ));
         setContext("simplify on a unary len with constant string ('foo')")
@@ -180,7 +180,7 @@ uint8_t testSimplifier(TestState& state) {
         expect(equals(simplified.number_value, 3), "%s did not return a SimplifyResult with value 3")
 
         // string with zero bytes
-        simplified = simplifier.simplify(allocator.alloc<AstExprUnary>(location, AstExprUnary::Len, state.expr_constant_string_foo_zero_bytes_bar));
+        simplified = simplifier.simplify(allocator.alloc<AstExprUnary>(location, AstExprUnary::Op::Len, state.expr_constant_string_foo_zero_bytes_bar));
         setContext("simplify on a unary len with constant string ('foo\\0\\0bar')")
         expect(equals(simplified.type, SimplifyResult::Number), "%s did not return a SimplifyResult of type Number")
         expect(equals(simplified.number_value, 8), "%s did not return a SimplifyResult with value 8")
@@ -192,7 +192,7 @@ uint8_t testSimplifier(TestState& state) {
             { .kind = AstExprTable::Item::Kind::List, .value = state.expr_constant_number_100 },
         };
         simplified = simplifier.simplify(allocator.alloc<AstExprUnary>(
-            location, AstExprUnary::Len,
+            location, AstExprUnary::Op::Len,
             allocator.alloc<AstExprTable>(location, copy(allocator, items.data(), items.size()))
         ));
         setContext("simplify on a unary len with normal table ({100,100,100})")
@@ -206,7 +206,7 @@ uint8_t testSimplifier(TestState& state) {
             { .kind = AstExprTable::Item::Kind::List, .value = state.expr_constant_number_100 },
         };
         auto expr = allocator.alloc<AstExprUnary>(
-            location, AstExprUnary::Len,
+            location, AstExprUnary::Op::Len,
             allocator.alloc<AstExprTable>(location, copy(allocator, items.data(), items.size())
         ));
         simplified = simplifier.simplify(expr);
@@ -223,7 +223,7 @@ uint8_t testSimplifier(TestState& state) {
             { .kind = AstExprTable::Item::Kind::List, .value = state.expr_constant_nil },
         };
         simplified = simplifier.simplify(allocator.alloc<AstExprUnary>(
-            location, AstExprUnary::Len,
+            location, AstExprUnary::Op::Len,
             allocator.alloc<AstExprTable>(location, copy(allocator, items.data(), items.size()))
         ));
         setContext("simplify on a unary len with table with nils ({100,nil,nil,100,nil})")
