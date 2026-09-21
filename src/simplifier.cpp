@@ -16,177 +16,298 @@
 #include "lua.h"
 #include "lualib.h"
 
-namespace LuauFormat
-{
+namespace LuauFormat {
 
-#define safeSetExpr(value)                                               \
-    {                                                                    \
-        auto &_expr = value;                                             \
-        if (_expr->is<AstExprFunction>() || _expr->is<AstExprVarargs>()) \
-            return expr;                                                 \
-        expr = _expr;                                                    \
-    }
-    AstExpr *getRootExpr(AstExpr *expr, bool safe)
-    {
-        if (safe)
-        {
-            while (true)
-            {
-                if (auto expr_group = expr->as<AstExprGroup>())
-                {
-                    safeSetExpr(expr_group->expr) continue;
-                }
-                else if (auto expr_type_assertion = expr->as<AstExprTypeAssertion>())
-                {
-                    safeSetExpr(expr_type_assertion->expr);
-                    continue;
-                }
-                break;
+#define safeSetExpr(value) { \
+    auto& _expr = value; \
+    if (_expr->is<AstExprFunction>() || _expr->is<AstExprVarargs>()) \
+        return expr; \
+    expr = _expr; \
+}
+AstExpr* getRootExpr(AstExpr* expr, bool safe) {
+    if (safe) {
+        while (true) {
+            if (auto expr_group = expr->as<AstExprGroup>()) {
+                safeSetExpr(expr_group->expr)
+                continue;
+            } else if (auto expr_type_assertion = expr->as<AstExprTypeAssertion>()) {
+                safeSetExpr(expr_type_assertion->expr);
+                continue;
             }
+            break;
         }
-        else
-        {
-            AstExprGroup *expr_group;
-            while ((expr_group = expr->as<AstExprGroup>()))
-                expr = expr_group->expr;
-        }
-
-        return expr;
+    } else {
+        AstExprGroup* expr_group;
+        while ((expr_group = expr->as<AstExprGroup>()))
+            expr = expr_group->expr;
     }
+
+    return expr;
+}
 #undef safeSetExpr
 
-    /*
-        0 -> falsy
-        1 -> truthy
-        2 -> can't be determined
-    */
-    uint8_t isExpressionTruthy(AstExpr *expr, bool allow_globals)
-    {
-        expr = getRootExpr(expr, false);
+/*
+    0 -> falsy
+    1 -> truthy
+    2 -> can't be determined
+*/
+uint8_t isExpressionTruthy(AstExpr* expr, bool allow_globals) {
+    expr = getRootExpr(expr, false);
 
-        if (expr->is<AstExprConstantNil>())
-            return 0;
-        else if (auto expr_constant_bool = expr->as<AstExprConstantBool>())
-            return expr_constant_bool->value;
-        else if (expr->is<AstExprConstantNumber>() || expr->is<AstExprConstantString>() || expr->is<AstExprFunction>() || expr->is<AstExprTable>() || expr->is<AstExprInterpString>())
-            return 1;
-        else if (auto expr_index_name = expr->as<AstExprIndexName>())
-        {
-            if (allow_globals)
-            {
-                auto global = getRootExpr(expr_index_name->expr, false)->as<AstExprGlobal>();
-                if (!global)
-                    return 0;
+    if (expr->is<AstExprConstantNil>())
+        return 0;
+    else if (auto expr_constant_bool = expr->as<AstExprConstantBool>())
+        return expr_constant_bool->value;
+    else if (expr->is<AstExprConstantNumber>() || expr->is<AstExprConstantString>() || expr->is<AstExprFunction>() || expr->is<AstExprTable>() || expr->is<AstExprInterpString>())
+        return 1;
+    else if (auto expr_index_name = expr->as<AstExprIndexName>()) {
+        if (allow_globals) {
+            auto global = getRootExpr(expr_index_name->expr, false)->as<AstExprGlobal>();
+            if (!global)
+                return 0;
 
-                const char *global_name = global->name.value;
-                const char *index = expr_index_name->index.value;
+            const char* global_name = global->name.value;
+            const char* index = expr_index_name->index.value;
 
-                if (strcmp(global_name, "bit32") == 0)
-                    return strcmp(index, "arshift") == 0 || strcmp(index, "band") == 0 || strcmp(index, "bnot") == 0 || strcmp(index, "bnot") == 0 || strcmp(index, "bor") == 0 || strcmp(index, "btest") == 0 || strcmp(index, "bxor") == 0 || strcmp(index, "byteswap") == 0 || strcmp(index, "countlz") == 0 || strcmp(index, "countrz") == 0 || strcmp(index, "extract") == 0 || strcmp(index, "replace") == 0 || strcmp(index, "lrotate") == 0 || strcmp(index, "lshift") == 0 || strcmp(index, "rrotate") == 0 || strcmp(index, "rshift") == 0;
-                else if (strcmp(global_name, "buffer") == 0)
-                    return strcmp(index, "create") == 0 || strcmp(index, "fromstring") == 0 || strcmp(index, "tostring") == 0 || strcmp(index, "len") == 0 || strcmp(index, "readbits") == 0 || strcmp(index, "readi8") == 0 || strcmp(index, "readu8") == 0 || strcmp(index, "readi16") == 0 || strcmp(index, "readu16") == 0 || strcmp(index, "readi32") == 0 || strcmp(index, "readu32") == 0 || strcmp(index, "readf32") == 0 || strcmp(index, "readf64") == 0 || strcmp(index, "writebits") == 0 || strcmp(index, "writei8") == 0 || strcmp(index, "writeu8") == 0 || strcmp(index, "writei16") == 0 || strcmp(index, "writeu16") == 0 || strcmp(index, "writei32") == 0 || strcmp(index, "writeu32") == 0 || strcmp(index, "writef32") == 0 || strcmp(index, "writef64") == 0 || strcmp(index, "readstring") == 0 || strcmp(index, "writestring") == 0 || strcmp(index, "copy") == 0 || strcmp(index, "fill") == 0;
-                else if (strcmp(global_name, "coroutine") == 0)
-                    return strcmp(index, "close") == 0 || strcmp(index, "create") == 0 || strcmp(index, "isyieldable") == 0 || strcmp(index, "resume") == 0 || strcmp(index, "running") == 0 || strcmp(index, "status") == 0 || strcmp(index, "wrap") == 0 || strcmp(index, "yield") == 0;
-                else if (strcmp(global_name, "debug") == 0)
-                    return strcmp(index, "traceback") == 0 || strcmp(index, "info") == 0;
+            if (strcmp(global_name, "bit32") == 0)
+                return strcmp(index, "arshift") == 0
+                    || strcmp(index, "band") == 0
+                    || strcmp(index, "bnot") == 0
+                    || strcmp(index, "bnot") == 0
+                    || strcmp(index, "bor") == 0
+                    || strcmp(index, "btest") == 0
+                    || strcmp(index, "bxor") == 0
+                    || strcmp(index, "byteswap") == 0
+                    || strcmp(index, "countlz") == 0
+                    || strcmp(index, "countrz") == 0
+                    || strcmp(index, "extract") == 0
+                    || strcmp(index, "replace") == 0
+                    || strcmp(index, "lrotate") == 0
+                    || strcmp(index, "lshift") == 0
+                    || strcmp(index, "rrotate") == 0
+                    || strcmp(index, "rshift") == 0;
+            else if (strcmp(global_name, "buffer") == 0)
+                return strcmp(index, "create") == 0
+                    || strcmp(index, "fromstring") == 0
+                    || strcmp(index, "tostring") == 0
+                    || strcmp(index, "len") == 0
+                    || strcmp(index, "readbits") == 0
+                    || strcmp(index, "readi8") == 0
+                    || strcmp(index, "readu8") == 0
+                    || strcmp(index, "readi16") == 0
+                    || strcmp(index, "readu16") == 0
+                    || strcmp(index, "readi32") == 0
+                    || strcmp(index, "readu32") == 0
+                    || strcmp(index, "readf32") == 0
+                    || strcmp(index, "readf64") == 0
+                    || strcmp(index, "writebits") == 0
+                    || strcmp(index, "writei8") == 0
+                    || strcmp(index, "writeu8") == 0
+                    || strcmp(index, "writei16") == 0
+                    || strcmp(index, "writeu16") == 0
+                    || strcmp(index, "writei32") == 0
+                    || strcmp(index, "writeu32") == 0
+                    || strcmp(index, "writef32") == 0
+                    || strcmp(index, "writef64") == 0
+                    || strcmp(index, "readstring") == 0
+                    || strcmp(index, "writestring") == 0
+                    || strcmp(index, "copy") == 0
+                    || strcmp(index, "fill") == 0;
+            else if (strcmp(global_name, "coroutine") == 0)
+                return strcmp(index, "close") == 0
+                    || strcmp(index, "create") == 0
+                    || strcmp(index, "isyieldable") == 0
+                    || strcmp(index, "resume") == 0
+                    || strcmp(index, "running") == 0
+                    || strcmp(index, "status") == 0
+                    || strcmp(index, "wrap") == 0
+                    || strcmp(index, "yield") == 0;
+            else if (strcmp(global_name, "debug") == 0)
+                return strcmp(index, "traceback") == 0
+                    || strcmp(index, "info") == 0;
                 // TODO: roblox setting
-                // || strcmp(index, "profilebegin") == 0
-                // || strcmp(index, "profileend") == 0
-                // || strcmp(index, "getmemorycategory") == 0
-                // || strcmp(index, "setmemorycategory") == 0
-                // || strcmp(index, "resetmemorycategory") == 0
-                // || strcmp(index, "dumpcodesize") == 0;
-                else if (strcmp(global_name, "math") == 0)
-                    return strcmp(index, "abs") == 0 || strcmp(index, "acos") == 0 || strcmp(index, "asin") == 0 || strcmp(index, "atan") == 0 || strcmp(index, "atan2") == 0 || strcmp(index, "ceil") == 0 || strcmp(index, "clamp") == 0 || strcmp(index, "cos") == 0 || strcmp(index, "cosh") == 0 || strcmp(index, "deg") == 0 || strcmp(index, "exp") == 0 || strcmp(index, "floor") == 0 || strcmp(index, "fmod") == 0 || strcmp(index, "frexp") == 0 || strcmp(index, "ldexp") == 0 || strcmp(index, "lerp") == 0 || strcmp(index, "log") == 0 || strcmp(index, "log10") == 0 || strcmp(index, "map") == 0 || strcmp(index, "max") == 0 || strcmp(index, "min") == 0 || strcmp(index, "modf") == 0 || strcmp(index, "noise") == 0 || strcmp(index, "pow") == 0 || strcmp(index, "rad") == 0 || strcmp(index, "random") == 0 || strcmp(index, "randomseed") == 0 || strcmp(index, "round") == 0 || strcmp(index, "sign") == 0 || strcmp(index, "sin") == 0 || strcmp(index, "sinh") == 0 || strcmp(index, "sqrt") == 0 || strcmp(index, "tan") == 0 || strcmp(index, "tanh") == 0
+                    // || strcmp(index, "profilebegin") == 0
+                    // || strcmp(index, "profileend") == 0
+                    // || strcmp(index, "getmemorycategory") == 0
+                    // || strcmp(index, "setmemorycategory") == 0
+                    // || strcmp(index, "resetmemorycategory") == 0
+                    // || strcmp(index, "dumpcodesize") == 0;
+            else if (strcmp(global_name, "math") == 0)
+                return strcmp(index, "abs") == 0
+                    || strcmp(index, "acos") == 0
+                    || strcmp(index, "asin") == 0
+                    || strcmp(index, "atan") == 0
+                    || strcmp(index, "atan2") == 0
+                    || strcmp(index, "ceil") == 0
+                    || strcmp(index, "clamp") == 0
+                    || strcmp(index, "cos") == 0
+                    || strcmp(index, "cosh") == 0
+                    || strcmp(index, "deg") == 0
+                    || strcmp(index, "exp") == 0
+                    || strcmp(index, "floor") == 0
+                    || strcmp(index, "fmod") == 0
+                    || strcmp(index, "frexp") == 0
+                    || strcmp(index, "ldexp") == 0
+                    || strcmp(index, "lerp") == 0
+                    || strcmp(index, "log") == 0
+                    || strcmp(index, "log10") == 0
+                    || strcmp(index, "map") == 0
+                    || strcmp(index, "max") == 0
+                    || strcmp(index, "min") == 0
+                    || strcmp(index, "modf") == 0
+                    || strcmp(index, "noise") == 0
+                    || strcmp(index, "pow") == 0
+                    || strcmp(index, "rad") == 0
+                    || strcmp(index, "random") == 0
+                    || strcmp(index, "randomseed") == 0
+                    || strcmp(index, "round") == 0
+                    || strcmp(index, "sign") == 0
+                    || strcmp(index, "sin") == 0
+                    || strcmp(index, "sinh") == 0
+                    || strcmp(index, "sqrt") == 0
+                    || strcmp(index, "tan") == 0
+                    || strcmp(index, "tanh") == 0
 
-                           || strcmp(index, "huge") == 0 || strcmp(index, "pi") == 0;
-                else if (strcmp(global_name, "os") == 0)
-                    return strcmp(index, "clock") == 0 || strcmp(index, "date") == 0 || strcmp(index, "difftime") == 0 || strcmp(index, "time");
-                else if (strcmp(global_name, "string") == 0)
-                    return strcmp(index, "byte") == 0 || strcmp(index, "char") == 0 || strcmp(index, "find") == 0 || strcmp(index, "format") == 0 || strcmp(index, "gmatch") == 0 || strcmp(index, "gsub") == 0 || strcmp(index, "len") == 0 || strcmp(index, "lower") == 0 || strcmp(index, "match") == 0 || strcmp(index, "pack") == 0 || strcmp(index, "packsize") == 0 || strcmp(index, "rep") == 0 || strcmp(index, "reverse") == 0 || strcmp(index, "split") == 0 || strcmp(index, "sub") == 0 || strcmp(index, "unpack") == 0 || strcmp(index, "upper") == 0;
-                else if (strcmp(global_name, "table") == 0)
-                    return strcmp(index, "clear") == 0 || strcmp(index, "clone") == 0 || strcmp(index, "concat") == 0 || strcmp(index, "create") == 0 || strcmp(index, "find") == 0 || strcmp(index, "freeze") == 0 || strcmp(index, "insert") == 0 || strcmp(index, "isfrozen") == 0 || strcmp(index, "maxn") == 0 || strcmp(index, "move") == 0 || strcmp(index, "pack") == 0 || strcmp(index, "remove") == 0 || strcmp(index, "sort") == 0 || strcmp(index, "unpack") == 0;
-                // TODO: roblox setting
-                // else if (strcmp(global_name, "task") == 0)
-                //     return strcmp(index, "spawn") == 0
-                //         || strcmp(index, "defer") == 0
-                //         || strcmp(index, "delay") == 0
-                //         || strcmp(index, "desynchronize") == 0
-                //         || strcmp(index, "synchronize") == 0
-                //         || strcmp(index, "wait") == 0
-                //         || strcmp(index, "cancel") == 0;
-                else if (strcmp(global_name, "utf8") == 0)
-                    return strcmp(index, "char") == 0 || strcmp(index, "codes") == 0 || strcmp(index, "codepoint") == 0 || strcmp(index, "len") == 0 || strcmp(index, "offset") == 0 || strcmp(index, "graphemes") == 0 || strcmp(index, "nfcnormalize") == 0 || strcmp(index, "nfdnormalize") == 0;
-            }
+                    || strcmp(index, "huge") == 0
+                    || strcmp(index, "pi") == 0;
+            else if (strcmp(global_name, "os") == 0)
+                return strcmp(index, "clock") == 0
+                    || strcmp(index, "date") == 0
+                    || strcmp(index, "difftime") == 0
+                    || strcmp(index, "time");
+            else if (strcmp(global_name, "string") == 0)
+                return strcmp(index, "byte") == 0
+                    || strcmp(index, "char") == 0
+                    || strcmp(index, "find") == 0
+                    || strcmp(index, "format") == 0
+                    || strcmp(index, "gmatch") == 0
+                    || strcmp(index, "gsub") == 0
+                    || strcmp(index, "len") == 0
+                    || strcmp(index, "lower") == 0
+                    || strcmp(index, "match") == 0
+                    || strcmp(index, "pack") == 0
+                    || strcmp(index, "packsize") == 0
+                    || strcmp(index, "rep") == 0
+                    || strcmp(index, "reverse") == 0
+                    || strcmp(index, "split") == 0
+                    || strcmp(index, "sub") == 0
+                    || strcmp(index, "unpack") == 0
+                    || strcmp(index, "upper") == 0;
+            else if (strcmp(global_name, "table") == 0)
+                return strcmp(index, "clear") == 0
+                    || strcmp(index, "clone") == 0
+                    || strcmp(index, "concat") == 0
+                    || strcmp(index, "create") == 0
+                    || strcmp(index, "find") == 0
+                    || strcmp(index, "freeze") == 0
+                    || strcmp(index, "insert") == 0
+                    || strcmp(index, "isfrozen") == 0
+                    || strcmp(index, "maxn") == 0
+                    || strcmp(index, "move") == 0
+                    || strcmp(index, "pack") == 0
+                    || strcmp(index, "remove") == 0
+                    || strcmp(index, "sort") == 0
+                    || strcmp(index, "unpack") == 0;
+            // TODO: roblox setting
+            // else if (strcmp(global_name, "task") == 0)
+            //     return strcmp(index, "spawn") == 0
+            //         || strcmp(index, "defer") == 0
+            //         || strcmp(index, "delay") == 0
+            //         || strcmp(index, "desynchronize") == 0
+            //         || strcmp(index, "synchronize") == 0
+            //         || strcmp(index, "wait") == 0
+            //         || strcmp(index, "cancel") == 0;
+            else if (strcmp(global_name, "utf8") == 0)
+                return strcmp(index, "char") == 0
+                    || strcmp(index, "codes") == 0
+                    || strcmp(index, "codepoint") == 0
+                    || strcmp(index, "len") == 0
+                    || strcmp(index, "offset") == 0
+                    || strcmp(index, "graphemes") == 0
+                    || strcmp(index, "nfcnormalize") == 0
+                    || strcmp(index, "nfdnormalize") == 0;
         }
-        else if (auto global_expr = expr->as<AstExprGlobal>())
-        {
-            if (allow_globals)
-            {
-                const char *global_name = global_expr->name.value;
+    } else if (auto global_expr = expr->as<AstExprGlobal>()) {
+        if (allow_globals) {
+            const char* global_name = global_expr->name.value;
 
-                if (strcmp(global_name, "assert") == 0 || strcmp(global_name, "error") == 0 || strcmp(global_name, "gcinfo") == 0 || strcmp(global_name, "getmetatable") == 0 || strcmp(global_name, "ipairs") == 0 || strcmp(global_name, "loadstring") == 0 || strcmp(global_name, "newproxy") == 0 || strcmp(global_name, "next") == 0 || strcmp(global_name, "pairs") == 0 || strcmp(global_name, "pcall") == 0 || strcmp(global_name, "print") == 0 || strcmp(global_name, "rawequal") == 0 || strcmp(global_name, "rawget") == 0 || strcmp(global_name, "rawlen") == 0 || strcmp(global_name, "rawset") == 0 || strcmp(global_name, "require") == 0 || strcmp(global_name, "select") == 0 || strcmp(global_name, "setmetatable") == 0 || strcmp(global_name, "tonumber") == 0 || strcmp(global_name, "tostring") == 0 || strcmp(global_name, "type") == 0 || strcmp(global_name, "unpack") == 0 || strcmp(global_name, "xpcall") == 0
+            if (strcmp(global_name, "assert") == 0
+                || strcmp(global_name, "error") == 0
+                || strcmp(global_name, "gcinfo") == 0
+                || strcmp(global_name, "getmetatable") == 0
+                || strcmp(global_name, "ipairs") == 0
+                || strcmp(global_name, "loadstring") == 0
+                || strcmp(global_name, "newproxy") == 0
+                || strcmp(global_name, "next") == 0
+                || strcmp(global_name, "pairs") == 0
+                || strcmp(global_name, "pcall") == 0
+                || strcmp(global_name, "print") == 0
+                || strcmp(global_name, "rawequal") == 0
+                || strcmp(global_name, "rawget") == 0
+                || strcmp(global_name, "rawlen") == 0
+                || strcmp(global_name, "rawset") == 0
+                || strcmp(global_name, "require") == 0
+                || strcmp(global_name, "select") == 0
+                || strcmp(global_name, "setmetatable") == 0
+                || strcmp(global_name, "tonumber") == 0
+                || strcmp(global_name, "tostring") == 0
+                || strcmp(global_name, "type") == 0
+                || strcmp(global_name, "unpack") == 0
+                || strcmp(global_name, "xpcall") == 0
 
-                    || strcmp(global_name, "_G") == 0 || strcmp(global_name, "_VERSION") == 0)
-                    return 1;
-            }
+                || strcmp(global_name, "_G") == 0
+                || strcmp(global_name, "_VERSION") == 0
+            )
+                return 1;
         }
-
-        return 2;
     }
 
-    std::string convertNumber(double value)
-    {
-        double decimal, integer;
+    return 2;
+}
 
-        decimal = modf(value, &integer);
+std::string convertNumber(double value) {
+    double decimal, integer;
 
-        std::string result;
+    decimal = modf(value, &integer);
 
-        if (decimal == 0)
-        {
-            result = std::to_string(integer);
-        }
-        else
-        {
-            char str[500];
-            sprintf(str, "%.15f", value);
+    std::string result;
 
-            result = str;
-        };
+    if (decimal == 0) {
+        result = std::to_string(integer);
+    } else {
+        char str[500];
+        sprintf(str, "%.15f", value);
 
-        if (result == "inf")
-            result = "math.huge";
-        else if (result == "nan" || result == "-nan")
-            result = "(0/0)";
-        else
-        {
-            while (result.length() > 2 && result[result.length() - 1] == '0')
-                result.erase(result.length() - 1, 1);
-
-            if (result[result.length() - 1] == '.')
-                result.erase(result.length() - 1, 1);
-        };
-
-        return result;
+        result = str;
     };
-    std::string fixString(AstArray<char> value, bool render_unicode, char string_character)
-    {
-        std::string result;
-        result += string_character;
 
-        for (size_t i = 0; i < value.size; i++)
-        {
-            auto &ch = value.data[i];
-            if (ch > 31 && ch < 127 && ch != string_character && ch != '\\')
-                result.append(std::string{ch});
+    if (result == "inf")
+        result = "math.huge";
+    else if (result == "nan" || result == "-nan")
+        result = "(0/0)";
+    else {
+        while (result.length() > 2 && result[result.length() - 1] == '0')
+            result.erase(result.length() - 1, 1);
+
+        if (result[result.length() - 1] == '.')
+            result.erase(result.length() - 1, 1);
+    };
+
+    return result;
+};
+std::string fixString(AstArray<char> value, bool render_unicode, char string_character) {
+    std::string result;
+    result += string_character;
+
+    for (size_t i = 0; i < value.size; i++) {
+        auto& ch = value.data[i];
+        if (ch > 31 && ch < 127 && ch != string_character && ch != '\\')
+            result.append(std::string{ch});
+        else {
+            if (ch == string_character)
+                (result += '\\') += string_character;
             else
-            {
-                if (ch == string_character)
-                    (result += '\\') += string_character;
-                else
-                    switch (ch)
-                    {
+                switch (ch) {
                     case 7:
                         result.append("\\a");
                         break;
@@ -214,50 +335,40 @@ namespace LuauFormat
                         break;
 
                     default:
-                        unsigned char n = (unsigned char)ch;
+                        unsigned char n = (unsigned char) ch;
 
                         size_t i0 = i;
                         uint32_t utf8 = UTF8_REJECT;
                         size_t utf8_count = 0;
-                        if (render_unicode)
-                        {
+                        if (render_unicode) {
                             uint32_t codepoint;
                             size_t i1 = i0 + 1;
                             size_t i2 = i0 + 2;
                             size_t i3 = i0 + 3;
 
                             size_t targeti = 0;
-                            if (n > 0xC1 && n < 0xE0 && i1 < value.size)
-                            {
+                            if (n > 0xC1 && n < 0xE0 && i1 < value.size) {
                                 utf8_count = 2;
                                 targeti = i1;
-                            }
-                            else if (n > 0xDF && n < 0xF0 && i2 < value.size)
-                            {
+                            } else if (n > 0xDF && n < 0xF0 && i2 < value.size) {
                                 utf8_count = 3;
                                 targeti = i2;
-                            }
-                            else if (n > 0xEF && i3 < value.size)
-                            {
+                            } else if (n > 0xEF && i3 < value.size) {
                                 utf8_count = 4;
                                 targeti = i3;
                             }
 
-                            if (targeti)
-                            {
+                            if (targeti) {
                                 utf8 = 0;
                                 for (; i <= targeti; i++)
                                     utf8_decode(&utf8, &codepoint, static_cast<unsigned char>(value.data[i]));
                             }
                         }
 
-                        if (utf8 == UTF8_ACCEPT)
-                        {
+                        if (utf8 == UTF8_ACCEPT) {
                             result.insert(result.end(), value.data + i0, value.data + i0 + utf8_count);
                             i--;
-                        }
-                        else
-                        {
+                        } else {
                             i = i0;
                             result.append("\\");
 
@@ -268,273 +379,235 @@ namespace LuauFormat
 
                             result.append(std::to_string((unsigned char)ch));
                         }
-                    };
-            };
+                };
         };
-
-        result += string_character;
-
-        return result;
     };
 
-    bool equalsCharArray(const AstArray<char> left, const AstArray<char> right)
-    {
-        if (left.size != right.size)
+    result += string_character;
+
+    return result;
+};
+
+bool equalsCharArray(const AstArray<char> left, const AstArray<char> right) {
+    if (left.size != right.size)
+        return false;
+
+    for (unsigned i = 0; i < left.size; i++)
+        if (left.data[i] != right.data[i])
             return false;
 
-        for (unsigned i = 0; i < left.size; i++)
-            if (left.data[i] != right.data[i])
-                return false;
+    return true;
+}
 
-        return true;
-    }
+int charArrayCmp(const AstArray<char> left, const AstArray<char> right) {
+    const char* l = left.data;
+    const char* r = right.data;
 
-    int charArrayCmp(const AstArray<char> left, const AstArray<char> right)
-    {
-        const char *l = left.data;
-        const char *r = right.data;
+    // always safe to read one character because even empty strings are nul terminated
+    if (*l != *r)
+        return uint8_t(*l) - uint8_t(*r);
 
-        // always safe to read one character because even empty strings are nul terminated
-        if (*l != *r)
-            return uint8_t(*l) - uint8_t(*r);
+    size_t size_left = left.size;
+    size_t size_right = right.size;
+    size_t size_min = size_left < size_right ? size_left : size_right;
 
-        size_t size_left = left.size;
-        size_t size_right = right.size;
-        size_t size_min = size_left < size_right ? size_left : size_right;
+    int res = memcmp(l, r, size_min);
+    if (res != 0)
+        return res;
 
-        int res = memcmp(l, r, size_min);
-        if (res != 0)
-            return res;
+    return size_left == size_right ? 0 : size_left < size_right ? -1 : 1;
+}
 
-        return size_left == size_right ? 0 : size_left < size_right ? -1
-                                                                    : 1;
-    }
 
-    uint8_t binaryCompareBool_ne(bool left, bool right)
-    {
-        return left != right;
-    }
-    uint8_t binaryCompareNumber_ne(double left, double right)
-    {
-        return left != right;
-    }
-    uint8_t binaryCompareString_ne(const AstArray<char> left, const AstArray<char> right)
-    {
-        return !equalsCharArray(left, right);
-    }
+uint8_t binaryCompareBool_ne(bool left, bool right) {
+    return left != right;
+}
+uint8_t binaryCompareNumber_ne(double left, double right) {
+    return left != right;
+}
+uint8_t binaryCompareString_ne(const AstArray<char> left, const AstArray<char> right) {
+    return !equalsCharArray(left, right);
+}
 
-    uint8_t binaryCompareBool_eq(bool left, bool right)
-    {
-        return left == right;
-    }
-    uint8_t binaryCompareNumber_eq(double left, double right)
-    {
-        return left == right;
-    }
-    uint8_t binaryCompareString_eq(const AstArray<char> left, const AstArray<char> right)
-    {
-        return equalsCharArray(left, right);
-    }
+uint8_t binaryCompareBool_eq(bool left, bool right) {
+    return left == right;
+}
+uint8_t binaryCompareNumber_eq(double left, double right) {
+    return left == right;
+}
+uint8_t binaryCompareString_eq(const AstArray<char> left, const AstArray<char> right) {
+    return equalsCharArray(left, right);
+}
 
-    uint8_t binaryCompareBool_lt(bool left, bool right)
-    {
-        return 2;
-    }
-    uint8_t binaryCompareNumber_lt(double left, double right)
-    {
-        return left < right;
-    }
-    uint8_t binaryCompareString_lt(const AstArray<char> left, const AstArray<char> right)
-    {
-        return charArrayCmp(left, right) < 0;
-    }
+uint8_t binaryCompareBool_lt(bool left, bool right) {
+    return 2;
+}
+uint8_t binaryCompareNumber_lt(double left, double right) {
+    return left < right;
+}
+uint8_t binaryCompareString_lt(const AstArray<char> left, const AstArray<char> right) {
+    return charArrayCmp(left, right) < 0;
+}
 
-    uint8_t binaryCompareBool_le(bool left, bool right)
-    {
-        return 2;
-    }
-    uint8_t binaryCompareNumber_le(double left, double right)
-    {
-        return left <= right;
-    }
-    uint8_t binaryCompareString_le(const AstArray<char> left, const AstArray<char> right)
-    {
-        return charArrayCmp(left, right) <= 0;
-    }
+uint8_t binaryCompareBool_le(bool left, bool right) {
+    return 2;
+}
+uint8_t binaryCompareNumber_le(double left, double right) {
+    return left <= right;
+}
+uint8_t binaryCompareString_le(const AstArray<char> left, const AstArray<char> right) {
+    return charArrayCmp(left, right) <= 0;
+}
 
-    uint8_t binaryCompareBool_gt(bool left, bool right)
-    {
-        return 2;
-    }
-    uint8_t binaryCompareNumber_gt(double left, double right)
-    {
-        return left > right;
-    }
-    uint8_t binaryCompareString_gt(const AstArray<char> left, const AstArray<char> right)
-    {
-        return charArrayCmp(left, right) > 0;
-    }
+uint8_t binaryCompareBool_gt(bool left, bool right) {
+    return 2;
+}
+uint8_t binaryCompareNumber_gt(double left, double right) {
+    return left > right;
+}
+uint8_t binaryCompareString_gt(const AstArray<char> left, const AstArray<char> right) {
+    return charArrayCmp(left, right) > 0;
+}
 
-    uint8_t binaryCompareBool_ge(bool left, bool right)
-    {
-        return 2;
-    }
-    uint8_t binaryCompareNumber_ge(double left, double right)
-    {
-        return left >= right;
-    }
-    uint8_t binaryCompareString_ge(const AstArray<char> left, const AstArray<char> right)
-    {
-        return charArrayCmp(left, right) >= 0;
-    }
+uint8_t binaryCompareBool_ge(bool left, bool right) {
+    return 2;
+}
+uint8_t binaryCompareNumber_ge(double left, double right) {
+    return left >= right;
+}
+uint8_t binaryCompareString_ge(const AstArray<char> left, const AstArray<char> right) {
+    return charArrayCmp(left, right) >= 0;
+}
 
-    std::optional<SimpleAssign> getSimpleAssign(AstStat *stat, bool can_have_no_values)
-    {
-        if (auto stat_as_assign = stat->as<AstStatAssign>())
-        {
-            auto &var_list = stat_as_assign->vars;
-            auto &value_list = stat_as_assign->values;
+std::optional<SimpleAssign> getSimpleAssign(AstStat* stat, bool can_have_no_values) {
+    if (auto stat_as_assign = stat->as<AstStatAssign>()) {
+        auto& var_list = stat_as_assign->vars;
+        auto& value_list = stat_as_assign->values;
 
-            bool has_value = false;
-            if (var_list.size != 1)
+        bool has_value = false;
+        if (var_list.size != 1)
+            return std::nullopt;
+        if (can_have_no_values) {
+            if (value_list.size > 1)
                 return std::nullopt;
-            if (can_have_no_values)
-            {
-                if (value_list.size > 1)
-                    return std::nullopt;
-            }
-            else
-            {
-                if (value_list.size != 1)
-                    return std::nullopt;
-                has_value = true;
-            }
-
-            auto var = var_list.data[0]->as<AstExprLocal>();
-            if (!var)
+        } else {
+            if (value_list.size != 1)
                 return std::nullopt;
-
-            auto &local = var->local;
-
-            return SimpleAssign{
-                .var = local->name.value,
-                .var_local = local,
-                .value = has_value ? value_list.data[0] : nullptr};
-        }
-        else if (auto stat_as_local = stat->as<AstStatLocal>())
-        {
-            auto &var_list = stat_as_local->vars;
-            auto &value_list = stat_as_local->values;
-
-            bool has_value = false;
-            if (var_list.size != 1)
-                return std::nullopt;
-            if (can_have_no_values)
-            {
-                if (value_list.size > 1)
-                    return std::nullopt;
-            }
-            else
-            {
-                if (value_list.size != 1)
-                    return std::nullopt;
-                has_value = true;
-            }
-
-            auto &local = var_list.data[0];
-
-            return SimpleAssign{
-                .var = local->name.value,
-                .var_local = local,
-                .value = has_value ? value_list.data[0] : nullptr};
+            has_value = true;
         }
 
+        auto var = var_list.data[0]->as<AstExprLocal>();
+        if (!var)
+            return std::nullopt;
+
+        auto& local = var->local;
+
+return SimpleAssign{
+            .var = local->name.value,
+            .var_local = local,
+            .value = has_value ? value_list.data[0] : nullptr
+        };
+    } else if (auto stat_as_local = stat->as<AstStatLocal>()) {
+        auto& var_list = stat_as_local->vars;
+        auto& value_list = stat_as_local->values;
+
+        bool has_value = false;
+        if (var_list.size != 1)
+            return std::nullopt;
+        if (can_have_no_values) {
+            if (value_list.size > 1)
+                return std::nullopt;
+        } else {
+            if (value_list.size != 1)
+                return std::nullopt;
+            has_value = true;
+        }
+
+        auto& local = var_list.data[0];
+
+return SimpleAssign{
+            .var = local->name.value,
+            .var_local = local,
+            .value = has_value ? value_list.data[0] : nullptr
+        };
+    }
+
+    return std::nullopt;
+}
+
+std::optional<Condition> Condition::tryCreateCondition(AstSimplifier& simplifier, AstExprBinary* expr_binary) {
+    if (!expr_binary)
+        return std::nullopt;
+
+    Condition result;
+    result.op = expr_binary->op;
+    result.flipped = false;
+
+    if (!(result.op == AstExprBinary::CompareNe ||
+      result.op == AstExprBinary::CompareEq ||
+      result.op == AstExprBinary::CompareLt ||
+      result.op == AstExprBinary::CompareLe ||
+      result.op == AstExprBinary::CompareGt ||
+      result.op == AstExprBinary::CompareGe))
+        return std::nullopt;
+
+    auto left = simplifier.simplify(expr_binary->left);
+    auto right = simplifier.simplify(expr_binary->right);
+
+    auto left_as_number = left.asNumber();
+    auto right_as_number = right.asNumber();
+
+    if (left_as_number && right_as_number)
+        return std::nullopt;
+
+    AstExpr* expr_to_check = right.toExpr();
+    if (left_as_number) {
+        result.number_is_left = true;
+        result.number = left_as_number.value();
+    } else if (right_as_number) {
+        result.number_is_left = false;
+        result.number = right_as_number.value();
+        expr_to_check = left.toExpr();
+    } else {
         return std::nullopt;
     }
 
-    std::optional<Condition> Condition::tryCreateCondition(AstSimplifier &simplifier, AstExprBinary *expr_binary)
-    {
-        if (!expr_binary)
-            return std::nullopt;
+    auto expr_local = expr_to_check->as<AstExprLocal>();
+    if (!expr_local)
+        return std::nullopt;
 
-        Condition result;
-        result.op = expr_binary->op;
-        result.flipped = false;
+    result.local = expr_local->local;
 
-        if (!(result.op == AstExprBinary::CompareNe ||
-              result.op == AstExprBinary::CompareEq ||
-              result.op == AstExprBinary::CompareLt ||
-              result.op == AstExprBinary::CompareLe ||
-              result.op == AstExprBinary::CompareGt ||
-              result.op == AstExprBinary::CompareGe))
-            return std::nullopt;
+    return result;
+}
+std::optional<Condition> Condition::tryCreateCondition(AstSimplifier& simplifier, AstExprBinary* expr_binary, const char* expected_local) {
+    auto condition = tryCreateCondition(simplifier, expr_binary);
+    if (!condition)
+        return std::nullopt;
 
-        auto left = simplifier.simplify(expr_binary->left);
-        auto right = simplifier.simplify(expr_binary->right);
+    if (strcmp(condition->local->name.value, expected_local) != 0)
+        return std::nullopt;
 
-        auto left_as_number = left.asNumber();
-        auto right_as_number = right.asNumber();
+    return condition;
+}
+std::optional<Condition> Condition::tryCreateCondition(AstSimplifier& simplifier, AstExprBinary* expr_binary, AstLocal* expected_local) {
+    auto condition = tryCreateCondition(simplifier, expr_binary);
+    if (!condition)
+        return std::nullopt;
 
-        if (left_as_number && right_as_number)
-            return std::nullopt;
+    if (condition->local != expected_local)
+        return std::nullopt;
 
-        AstExpr *expr_to_check = right.toExpr();
-        if (left_as_number)
-        {
-            result.number_is_left = true;
-            result.number = left_as_number.value();
-        }
-        else if (right_as_number)
-        {
-            result.number_is_left = false;
-            result.number = right_as_number.value();
-            expr_to_check = left.toExpr();
-        }
-        else
-        {
-            return std::nullopt;
-        }
+    return condition;
+}
 
-        auto expr_local = expr_to_check->as<AstExprLocal>();
-        if (!expr_local)
-            return std::nullopt;
+bool Condition::passes(double input) {
+    double left = number_is_left ? number : input;
+    double right = number_is_left ? input : number;
 
-        result.local = expr_local->local;
+    bool result = false;
 
-        return result;
-    }
-    std::optional<Condition> Condition::tryCreateCondition(AstSimplifier &simplifier, AstExprBinary *expr_binary, const char *expected_local)
-    {
-        auto condition = tryCreateCondition(simplifier, expr_binary);
-        if (!condition)
-            return std::nullopt;
-
-        if (strcmp(condition->local->name.value, expected_local) != 0)
-            return std::nullopt;
-
-        return condition;
-    }
-    std::optional<Condition> Condition::tryCreateCondition(AstSimplifier &simplifier, AstExprBinary *expr_binary, AstLocal *expected_local)
-    {
-        auto condition = tryCreateCondition(simplifier, expr_binary);
-        if (!condition)
-            return std::nullopt;
-
-        if (condition->local != expected_local)
-            return std::nullopt;
-
-        return condition;
-    }
-
-    bool Condition::passes(double input)
-    {
-        double left = number_is_left ? number : input;
-        double right = number_is_left ? input : number;
-
-        bool result = false;
-
-        switch (op)
-        {
+    switch (op) {
         case AstExprBinary::CompareNe:
             result = left != right;
             break;
@@ -553,200 +626,189 @@ namespace LuauFormat
         case AstExprBinary::CompareGe:
             result = left >= right;
             break;
-        default:
-        {
+        default: {
             fprintf(stderr, "ERROR passes: unhandled op %d\n", op);
             exit(1);
         }
-        }
-
-        if (flipped)
-            result = !result;
-
-        return result;
     }
 
-    RecordTableReplaceVisitor::RecordTableReplaceVisitor(AstSimplifier &simplifier) : simplifier(simplifier) {}
+    if (flipped)
+        result = !result;
 
-    bool RecordTableReplaceVisitor::visit(AstStatBlock *root_block)
+    return result;
+}
+
+RecordTableReplaceVisitor::RecordTableReplaceVisitor(AstSimplifier& simplifier) : simplifier(simplifier) {}
+
+bool RecordTableReplaceVisitor::visit(AstStatBlock* root_block) {
+    auto root_block_body = root_block->body;
+    if (root_block_body.size < 1)
+        goto RET;
+
     {
-        auto root_block_body = root_block->body;
-        if (root_block_body.size < 1)
-            goto RET;
 
-        {
+    auto last_stat_as_return = root_block_body.data[root_block_body.size - 1]->as<AstStatReturn>();
+    if (!last_stat_as_return)
+        goto RET;
 
-            auto last_stat_as_return = root_block_body.data[root_block_body.size - 1]->as<AstStatReturn>();
-            if (!last_stat_as_return)
-                goto RET;
+    auto last_stat_as_return_list = last_stat_as_return->list;
+    if (last_stat_as_return_list.size != 1)
+        goto RET;
 
-            auto last_stat_as_return_list = last_stat_as_return->list;
-            if (last_stat_as_return_list.size != 1)
-                goto RET;
+    auto outer_call = getRootExpr(last_stat_as_return_list.data[0])->as<AstExprCall>();
+    if (!outer_call)
+        goto RET;
 
-            auto outer_call = getRootExpr(last_stat_as_return_list.data[0])->as<AstExprCall>();
-            if (!outer_call)
-                goto RET;
+    auto inner_call = getRootExpr(outer_call->func)->as<AstExprCall>();
+    if (!inner_call)
+        goto RET;
 
-            auto inner_call = getRootExpr(outer_call->func)->as<AstExprCall>();
-            if (!inner_call)
-                goto RET;
+    auto return_func_as_function = getRootExpr(inner_call->func)->as<AstExprFunction>();
+    if (!return_func_as_function)
+        goto RET;
 
-            auto return_func_as_function = getRootExpr(inner_call->func)->as<AstExprFunction>();
-            if (!return_func_as_function)
-                goto RET;
+    auto call_parameters = inner_call->args;
+    if (call_parameters.size < 1)
+        goto RET;
 
-            auto call_parameters = inner_call->args;
-            if (call_parameters.size < 1)
-                goto RET;
-
-            key_to_expr_map.clear();
-            size_t table_index_in_parameters = -1;
-            for (size_t i = 0; i < call_parameters.size; i++)
-            {
-                auto expr_as_table = getRootExpr(call_parameters.data[i])->as<AstExprTable>();
-                if (!expr_as_table)
-                    continue;
-                auto items = expr_as_table->items;
-                bool passes = items.size > 0;
-                for (size_t j = 0; j < items.size; j++)
-                {
-                    auto &item = items.data[j];
-                    if (item.kind != Luau::AstExprTable::Item::Kind::Record)
-                    {
-                        passes = false;
-                        break;
-                    }
-                    key_to_expr_map.emplace(item.key->as<AstExprConstantString>()->value.data, item.value);
-                }
-                if (passes)
-                {
-                    table_index_in_parameters = i;
-                    break;
-                }
+    key_to_expr_map.clear();
+    size_t table_index_in_parameters = -1;
+    for (size_t i = 0; i < call_parameters.size; i++) {
+        auto expr_as_table = getRootExpr(call_parameters.data[i])->as<AstExprTable>();
+        if (!expr_as_table)
+            continue;
+        auto items = expr_as_table->items;
+        bool passes = items.size > 0;
+        for (size_t j = 0; j < items.size; j++) {
+            auto& item = items.data[j];
+            if (item.kind != Luau::AstExprTable::Item::Kind::Record) {
+                passes = false;
+                break;
             }
-
-            if (table_index_in_parameters == (size_t)-1)
-                goto RET;
-
-            auto function_args = return_func_as_function->args;
-            if (function_args.size <= table_index_in_parameters)
-                goto RET;
-
-            arg_local = function_args.data[table_index_in_parameters];
-
-            success = true;
+            key_to_expr_map.emplace(item.key->as<AstExprConstantString>()->value.data, item.value);
         }
-
-    RET:
-        return false;
+        if (passes) {
+            table_index_in_parameters = i;
+            break;
+        }
     }
 
-    ListTableReplaceVisitor::ListTableReplaceVisitor(AstSimplifier &simplifier) : simplifier(simplifier) {}
+    if (table_index_in_parameters == (size_t) -1)
+        goto RET;
 
-    bool ListTableReplaceVisitor::visit(AstStatBlock *root_block)
+    auto function_args = return_func_as_function->args;
+    if (function_args.size <= table_index_in_parameters)
+        goto RET;
+
+    arg_local = function_args.data[table_index_in_parameters];
+
+    success = true;
+
+    }
+
+RET:
+    return false;
+}
+
+ListTableReplaceVisitor::ListTableReplaceVisitor(AstSimplifier& simplifier) : simplifier(simplifier) {}
+
+bool ListTableReplaceVisitor::visit(AstStatBlock* root_block) {
+    auto root_block_body = root_block->body;
+    if (root_block_body.size < 1)
+        goto RET;
+
     {
-        auto root_block_body = root_block->body;
-        if (root_block_body.size < 1)
-            goto RET;
 
-        {
+    auto last_stat_as_return = root_block_body.data[root_block_body.size - 1]->as<AstStatReturn>();
+    if (!last_stat_as_return)
+        goto RET;
 
-            auto last_stat_as_return = root_block_body.data[root_block_body.size - 1]->as<AstStatReturn>();
-            if (!last_stat_as_return)
-                goto RET;
+    auto last_stat_as_return_list = last_stat_as_return->list;
+    if (last_stat_as_return_list.size != 1)
+        goto RET;
 
-            auto last_stat_as_return_list = last_stat_as_return->list;
-            if (last_stat_as_return_list.size != 1)
-                goto RET;
+    auto outer_call = getRootExpr(last_stat_as_return_list.data[0])->as<AstExprCall>();
+    if (!outer_call)
+        goto RET;
 
-            auto outer_call = getRootExpr(last_stat_as_return_list.data[0])->as<AstExprCall>();
-            if (!outer_call)
-                goto RET;
+    auto inner_call = getRootExpr(outer_call->func)->as<AstExprCall>();
+    if (!inner_call)
+        goto RET;
 
-            auto inner_call = getRootExpr(outer_call->func)->as<AstExprCall>();
-            if (!inner_call)
-                goto RET;
+    auto return_func_as_function = getRootExpr(inner_call->func)->as<AstExprFunction>();
+    if (!return_func_as_function)
+        goto RET;
 
-            auto return_func_as_function = getRootExpr(inner_call->func)->as<AstExprFunction>();
-            if (!return_func_as_function)
-                goto RET;
+    auto call_parameters = inner_call->args;
+    if (call_parameters.size < 1)
+        goto RET;
 
-            auto call_parameters = inner_call->args;
-            if (call_parameters.size < 1)
-                goto RET;
-
-            index_to_expr_map.clear();
-            size_t table_index_in_parameters = -1;
-            for (size_t i = 0; i < call_parameters.size; i++)
-            {
-                auto expr_as_table = getRootExpr(call_parameters.data[i])->as<AstExprTable>();
-                if (!expr_as_table)
-                    continue;
-                auto items = expr_as_table->items;
-                bool passes = items.size > 0;
-                for (size_t ti = 0; ti < items.size; ti++)
-                {
-                    auto item = &items.data[ti];
-                    if (item->kind != Luau::AstExprTable::Item::Kind::List)
-                    {
-                        passes = false;
-                        break;
-                    }
-                    index_to_expr_map.emplace(ti + 1, item->value);
-                }
-                if (passes)
-                {
-                    table_index_in_parameters = i;
-                    break;
-                }
+    index_to_expr_map.clear();
+    size_t table_index_in_parameters = -1;
+    for (size_t i = 0; i < call_parameters.size; i++) {
+        auto expr_as_table = getRootExpr(call_parameters.data[i])->as<AstExprTable>();
+        if (!expr_as_table)
+            continue;
+        auto items = expr_as_table->items;
+        bool passes = items.size > 0;
+        for (size_t ti = 0; ti < items.size; ti++) {
+            auto item = &items.data[ti];
+            if (item->kind != Luau::AstExprTable::Item::Kind::List) {
+                passes = false;
+                break;
             }
-
-            if (table_index_in_parameters == (size_t)-1)
-                goto RET;
-
-            auto function_args = return_func_as_function->args;
-            if (function_args.size <= table_index_in_parameters)
-                goto RET;
-
-            arg_local = function_args.data[table_index_in_parameters];
-            success = true;
+            index_to_expr_map.emplace(ti + 1, item->value);
         }
-
-    RET:
-        return false;
+        if (passes) {
+            table_index_in_parameters = i;
+            break;
+        }
     }
 
-    // typedef struct {
-    //     AstArray<AstStat*> body;
-    // } InfiniteLoop;
-    // std::optional<InfiniteLoop> getInfiniteLoop(AstSimplifier& simplifier, AstStat* main_stat) {
-    //     std::optional<InfiniteLoop> result = std::nullopt;
+    if (table_index_in_parameters == (size_t) -1)
+        goto RET;
 
-    //     if (auto main_stat_as_while = main_stat->as<AstStatWhile>()) {
-    //         if (simplifier.simplify(main_stat_as_while->condition).isTruthy() != 1)
-    //             goto RET;
-    //         result = std::make_optional(InfiniteLoop{ .body = main_stat_as_while->body->body });
-    //     } else if (auto main_stat_as_repeat = main_stat->as<AstStatRepeat>()) {
-    //         if (simplifier.simplify(main_stat_as_repeat->condition).isTruthy() != 0)
-    //             goto RET;
-    //         result = std::make_optional(InfiniteLoop{ .body = main_stat_as_repeat->body->body });
-    //     }
+    auto function_args = return_func_as_function->args;
+    if (function_args.size <= table_index_in_parameters)
+        goto RET;
 
-    // RET:
-    //     return result;
-    // }
+    arg_local = function_args.data[table_index_in_parameters];
+    success = true;
 
-    SimplifyResult::SimplifyResult(AstSimplifier *simplifier, AstExprConstantNil *nil_value, bool group) : simplifier(simplifier), type(Nil), nil_value(nil_value), group(group) {}
-    SimplifyResult::SimplifyResult(AstSimplifier *simplifier, bool bool_value, bool group) : simplifier(simplifier), type(Bool), bool_value(bool_value), group(group) {}
-    SimplifyResult::SimplifyResult(AstSimplifier *simplifier, double number_value, bool group) : simplifier(simplifier), type(Number), number_value(number_value), group(group) {}
-    SimplifyResult::SimplifyResult(AstSimplifier *simplifier, AstArray<char> string_value, bool group) : simplifier(simplifier), type(String), string_value(string_value), group(group) {}
-    SimplifyResult::SimplifyResult(AstSimplifier *simplifier, AstExpr *other_value, bool group) : simplifier(simplifier), type(Other), other_value(other_value), group(group) {}
+    }
 
-    AstExpr *SimplifyResult::toExpr()
-    {
-        switch (type)
-        {
+RET:
+    return false;
+}
+
+// typedef struct {
+//     AstArray<AstStat*> body;
+// } InfiniteLoop;
+// std::optional<InfiniteLoop> getInfiniteLoop(AstSimplifier& simplifier, AstStat* main_stat) {
+//     std::optional<InfiniteLoop> result = std::nullopt;
+
+//     if (auto main_stat_as_while = main_stat->as<AstStatWhile>()) {
+//         if (simplifier.simplify(main_stat_as_while->condition).isTruthy() != 1)
+//             goto RET;
+//         result = std::make_optional(InfiniteLoop{ .body = main_stat_as_while->body->body });
+//     } else if (auto main_stat_as_repeat = main_stat->as<AstStatRepeat>()) {
+//         if (simplifier.simplify(main_stat_as_repeat->condition).isTruthy() != 0)
+//             goto RET;
+//         result = std::make_optional(InfiniteLoop{ .body = main_stat_as_repeat->body->body });
+//     }
+
+// RET:
+//     return result;
+// }
+
+SimplifyResult::SimplifyResult(AstSimplifier* simplifier, AstExprConstantNil* nil_value, bool group) : simplifier(simplifier), type(Nil), nil_value(nil_value), group(group) {}
+SimplifyResult::SimplifyResult(AstSimplifier* simplifier, bool bool_value, bool group) : simplifier(simplifier), type(Bool), bool_value(bool_value), group(group) {}
+SimplifyResult::SimplifyResult(AstSimplifier* simplifier, double number_value, bool group) : simplifier(simplifier), type(Number), number_value(number_value), group(group) {}
+SimplifyResult::SimplifyResult(AstSimplifier* simplifier, AstArray<char> string_value, bool group) : simplifier(simplifier), type(String), string_value(string_value), group(group) {}
+SimplifyResult::SimplifyResult(AstSimplifier* simplifier, AstExpr* other_value, bool group) : simplifier(simplifier), type(Other), other_value(other_value), group(group) {}
+
+AstExpr* SimplifyResult::toExpr() {
+    switch (type) {
         case Nil:
             return nil_value;
         case Bool:
@@ -757,20 +819,17 @@ namespace LuauFormat
             return simplifier->getAllocator().alloc<AstExprConstantString>(Location(), string_value, AstExprConstantString::QuoteStyle::QuotedSimple);
         case Other:
             return other_value;
-        }
-        // TODO: think of a better solution
-        return nullptr;
     }
-    std::optional<double> SimplifyResult::asNumber()
-    {
-        switch (type)
-        {
+    // TODO: think of a better solution
+    return nullptr;
+}
+std::optional<double> SimplifyResult::asNumber() {
+    switch (type) {
         case Number:
             return number_value;
-        case String:
-        {
+        case String: {
             // TODO: check behavior with zero bytes
-            char *end;
+            char* end;
             errno = 0;
             int result = strtod(string_value.data, &end);
             if (errno == ERANGE || *string_value.data == '\0' || *end != '\0')
@@ -779,23 +838,20 @@ namespace LuauFormat
         }
         default:
             return std::nullopt;
-        }
     }
-    std::optional<AstArray<char>> SimplifyResult::asString()
-    {
-        if (type == String)
-            return string_value;
+}
+std::optional<AstArray<char>> SimplifyResult::asString() {
+    if (type == String)
+        return string_value;
 
-        auto result = AstArray<char>();
-        result.data = nullptr;
-        result.size = 0;
-        switch (type)
-        {
-        case Number:
-        {
+    auto result = AstArray<char>();
+    result.data = nullptr;
+    result.size = 0;
+    switch (type) {
+        case Number: {
             std::string str = convertNumber(number_value);
             const size_t len = str.size();
-            char *allocated = static_cast<char *>(simplifier->getAllocator().allocate(len));
+            char* allocated = static_cast<char*>(simplifier->getAllocator().allocate(len));
             memcpy(allocated, str.data(), len);
             result.data = allocated;
             result.size = len;
@@ -803,371 +859,338 @@ namespace LuauFormat
         }
         default:
             return std::nullopt;
-        }
     }
-    uint8_t SimplifyResult::isTruthy()
-    {
-        return isExpressionTruthy(toExpr(), simplifier->assume_globals);
-    }
+}
+uint8_t SimplifyResult::isTruthy() {
+    return isExpressionTruthy(toExpr(), simplifier->assume_globals);
+}
 
-    AstSimplifier::AstSimplifier(AstNameTable &name_table, Allocator &allocator, bool safe, bool disabled, bool simplify_lua_calls, bool optimizations, bool assume_globals) : name_table(name_table), allocator(allocator), safe(safe), disabled(disabled), simplify_lua_calls(simplify_lua_calls), optimizations(optimizations), assume_globals(assume_globals) {}
+AstSimplifier::AstSimplifier(AstNameTable& name_table, Allocator& allocator, bool safe, bool disabled, bool simplify_lua_calls, bool optimizations, bool assume_globals) :
+    name_table(name_table), allocator(allocator), safe(safe), disabled(disabled), simplify_lua_calls(simplify_lua_calls), optimizations(optimizations), assume_globals(assume_globals) {}
 
-    Allocator &AstSimplifier::getAllocator()
-    {
-        return allocator;
-    }
+Allocator& AstSimplifier::getAllocator() {
+    return allocator;
+}
 
-    std::optional<std::vector<AstExpr *>> AstSimplifier::getDeterminableList(std::vector<AstExpr *> list)
-    {
-        size_t list_size = list.size();
-        std::vector<AstExpr *> determinable_list;
+std::optional<std::vector<AstExpr*>> AstSimplifier::getDeterminableList(std::vector<AstExpr*> list) {
+    size_t list_size = list.size();
+    std::vector<AstExpr*> determinable_list;
 
-        for (size_t i = 0; i < list_size; i++)
-        {
-            AstExpr *value = simplifyToExpr(list[i]);
+    for (size_t i = 0; i < list_size; i++) {
+        AstExpr* value = simplifyToExpr(list[i]);
 
-            if (isExpressionTruthy(value, assume_globals) < 2) // if a value can be determined as truthy, we consider it "determinable"
-                determinable_list.push_back(value);
-            else if (auto value_call = value->as<AstExprCall>())
-            {
-                auto func = getRootExpr(value_call->func, false)->as<AstExprFunction>();
-                if (!func)
-                    return std::nullopt;
+        if (isExpressionTruthy(value, assume_globals) < 2) // if a value can be determined as truthy, we consider it "determinable"
+            determinable_list.push_back(value);
+        else if (auto value_call = value->as<AstExprCall>()) {
+            auto func = getRootExpr(value_call->func, false)->as<AstExprFunction>();
+            if (!func)
+                return std::nullopt;
 
-                auto &body = func->body->body;
-                // we need to ensure that there is only one return
-                // this could easily be improved using a visitor that looks for return stats
-                if (body.size != 1)
-                    return std::nullopt;
+            auto& body = func->body->body;
+            // we need to ensure that there is only one return
+            // this could easily be improved using a visitor that looks for return stats
+            if (body.size != 1)
+                return std::nullopt;
 
-                auto return_stat = body.data[0]->as<AstStatReturn>();
-                if (!return_stat)
-                    return std::nullopt;
+            auto return_stat = body.data[0]->as<AstStatReturn>();
+            if (!return_stat)
+                return std::nullopt;
 
-                std::vector<AstExpr *> sub_list;
+            std::vector<AstExpr*> sub_list;
 
-                // bool vararg = func->args.size == 0 && func->vararg;
-                auto &return_list = return_stat->list;
-                auto &return_count = return_list.size;
-                if (return_count == 0)
-                {
-                    determinable_list.push_back(allocator.alloc<AstExprConstantNil>(Location(Position(0, 0), 0)));
-                    continue;
-                }
-
-                if (i + 1 == list_size)
-                {
-                    for (unsigned index = 0; index < return_count; index++)
-                        sub_list.push_back(return_list.data[index]);
-
-                    if (getRootExpr(sub_list.back())->is<AstExprVarargs>(), false)
-                    {
-                        sub_list.pop_back();
-                        for (size_t j = 0; j < value_call->args.size; j++)
-                        {
-                            auto &arg = value_call->args.data[j];
-                            sub_list.push_back(arg);
-                        }
-                    }
-
-                    auto sub_determinable_list = getDeterminableList(sub_list);
-                    if (sub_determinable_list.has_value())
-                        determinable_list.insert(std::end(determinable_list), std::begin(sub_determinable_list.value()), std::end(sub_determinable_list.value()));
-                    else
-                        return std::nullopt;
-                }
-                else
-                    determinable_list.push_back(return_list.data[0]);
+            // bool vararg = func->args.size == 0 && func->vararg;
+            auto& return_list = return_stat->list;
+            auto& return_count = return_list.size;
+            if (return_count == 0) {
+                determinable_list.push_back(allocator.alloc<AstExprConstantNil>(Location(Position(0, 0), 0)));
+                continue;
             }
-            else
-                return std::nullopt;
-        }
 
-        return determinable_list;
+            if (i + 1 == list_size) {
+                for (unsigned index = 0; index < return_count; index++)
+                    sub_list.push_back(return_list.data[index]);
+
+                if (getRootExpr(sub_list.back())->is<AstExprVarargs>(), false) {
+                    sub_list.pop_back();
+                    for (size_t j = 0; j < value_call->args.size; j++) {
+                        auto& arg = value_call->args.data[j];
+                        sub_list.push_back(arg);
+                    }
+                }
+
+                auto sub_determinable_list = getDeterminableList(sub_list);
+                if (sub_determinable_list.has_value())
+                    determinable_list.insert(std::end(determinable_list), std::begin(sub_determinable_list.value()), std::end(sub_determinable_list.value()));
+                else
+                    return std::nullopt;
+            } else
+                determinable_list.push_back(return_list.data[0]);
+        } else
+            return std::nullopt;
     }
-    std::optional<std::vector<AstExpr *>> AstSimplifier::getDeterminableList(AstArray<AstExpr *> list)
-    {
-        std::vector<AstExpr *> vector(list.data, list.data + list.size);
-        return getDeterminableList(vector);
-    }
 
-    std::optional<size_t> AstSimplifier::getTableSize(AstExprTable *table)
-    {
-        std::vector<AstExpr *> list;
-        auto &items = table->items;
+    return determinable_list;
+}
+std::optional<std::vector<AstExpr*>> AstSimplifier::getDeterminableList(AstArray<AstExpr*> list) {
+    std::vector<AstExpr*> vector(list.data, list.data + list.size);
+    return getDeterminableList(vector);
+}
 
-        if (items.size == 0)
-            return 0;
+std::optional<size_t> AstSimplifier::getTableSize(AstExprTable* table) {
+    std::vector<AstExpr*> list;
+    auto& items = table->items;
 
-        for (unsigned index = 0; index < items.size; index++)
-        {
-            auto &item = items.data[index];
-            if (item.kind != AstExprTable::Item::Kind::List)
-                return std::nullopt;
+    if (items.size == 0)
+        return 0;
 
-            list.push_back(item.value);
-        }
-
-        auto determinable_list = getDeterminableList(list);
-        if (!determinable_list.has_value())
+    for (unsigned index = 0; index < items.size; index++) {
+        auto& item = items.data[index];
+        if (item.kind != AstExprTable::Item::Kind::List)
             return std::nullopt;
 
-        /*
-        ** Try to find a boundary in table `t'. A `boundary' is an integer index
-        ** such that t[i] is non-nil and t[i+1] is nil (and 0 if t[1] is nil).
-        */
-
-        int j = determinable_list->size();
-
-        if (j > 0)
-        {
-            auto expr = simplifyToExpr(determinable_list->at(j - 1));
-
-            if (expr->is<AstExprConstantNil>())
-            {
-#define solveAndCheckNil(oldexpr)   \
-    expr = simplifyToExpr(oldexpr); \
-    bool is_nil = expr->is<AstExprConstantNil>();
-
-                AstExpr **base = determinable_list->data();
-                int rest = j;
-                while (int half = rest >> 1)
-                {
-                    solveAndCheckNil(base[half])
-                        base = is_nil ? base : base + half;
-                    rest -= half;
-                }
-
-                solveAndCheckNil(*base);
-
-                int boundary = !is_nil + int(base - determinable_list->data());
-                return boundary;
-
-#undef solveAndCheckNil
-            }
-        }
-
-        return j;
+        list.push_back(item.value);
     }
 
-    enum LuaCallArgs
-    {
-        InvalidFunction,
-        Number,
-        String,
-        NumberOrString
-    };
-    LuaCallArgs getLuaCallArgs(const char *global, const char *global_index)
-    {
-        if (global_index == nullptr)
-        {
-            if (strcmp(global, "tonumber") == 0 || strcmp(global, "tostring") == 0)
-                return NumberOrString;
+    auto determinable_list = getDeterminableList(list);
+    if (!determinable_list.has_value())
+        return std::nullopt;
 
-            return InvalidFunction;
+    /*
+    ** Try to find a boundary in table `t'. A `boundary' is an integer index
+    ** such that t[i] is non-nil and t[i+1] is nil (and 0 if t[1] is nil).
+    */
+
+    int j = determinable_list->size();
+
+    if (j > 0) {
+        auto expr = simplifyToExpr(determinable_list->at(j - 1));
+
+        if (expr->is<AstExprConstantNil>()) {
+            #define solveAndCheckNil(oldexpr) expr = simplifyToExpr(oldexpr); \
+                bool is_nil = expr->is<AstExprConstantNil>();
+
+            AstExpr** base = determinable_list->data();
+            int rest = j;
+            while (int half = rest >> 1) {
+                solveAndCheckNil(base[half])
+                base = is_nil ? base : base + half;
+                rest -= half;
+            }
+
+            solveAndCheckNil(*base);
+
+            int boundary = !is_nil + int(base - determinable_list->data());
+            return boundary;
+
+            #undef solveAndCheckNil
         }
+    }
 
-        if (strcmp(global, "math") == 0 || strcmp(global, "bit32") == 0)
-            return Number;
+    return j;
+}
 
-        if (strcmp(global, "string") == 0 && (strcmp(global_index, "unpack") == 0 || strcmp(global_index, "char") == 0))
-            return String;
+enum LuaCallArgs {
+    InvalidFunction,
+    Number,
+    String,
+    NumberOrString
+};
+LuaCallArgs getLuaCallArgs(const char* global, const char* global_index) {
+    if (global_index == nullptr) {
+        if (strcmp(global, "tonumber") == 0 || strcmp(global, "tostring") == 0)
+            return NumberOrString;
 
         return InvalidFunction;
     }
 
-    std::variant<std::monostate, double, AstArray<char>> AstSimplifier::callLuaFunction(AstArray<AstExpr *> args, const char *global, const char *global_index, simplifyHook hook, void *hook_data)
-    {
-        std::variant<std::monostate, double, AstArray<char>> result;
+    if (strcmp(global, "math") == 0 || strcmp(global, "bit32") == 0)
+        return Number;
 
-        auto lua_call_args = getLuaCallArgs(global, global_index);
-        if (lua_call_args == InvalidFunction)
-            return result;
+    if (strcmp(global, "string") == 0 && (strcmp(global_index, "unpack") == 0 || strcmp(global_index, "char") == 0))
+        return String;
 
-        lua_State *L = luaL_newstate();
-        luaopen_base(L);
-        luaopen_string(L);
-        luaopen_math(L);
-        luaopen_bit32(L);
-        lua_pop(L, lua_gettop(L));
+    return InvalidFunction;
+}
 
-        lua_getglobal(L, "print"); // error handler
+std::variant<std::monostate, double, AstArray<char>> AstSimplifier::callLuaFunction(AstArray<AstExpr*> args, const char* global, const char* global_index, simplifyHook hook, void* hook_data) {
+    std::variant<std::monostate, double, AstArray<char>> result;
 
-        // push target function
-        lua_getglobal(L, global);
-        if (global_index)
-            lua_getfield(L, -1, global_index);
-
-        for (size_t i = 0; i < args.size; i++)
-        {
-            auto arg = args.data[i];
-            SimplifyResult arg_simplified = simplify(arg, hook, hook_data);
-            auto arg_as_number = arg_simplified.asNumber();
-            auto arg_as_string = arg_simplified.asString();
-
-            if (arg_as_number)
-            {
-                if (lua_call_args == Number || lua_call_args == NumberOrString)
-                {
-                    lua_pushnumber(L, arg_as_number.value());
-                    continue;
-                }
-                goto RET;
-            }
-            if (arg_as_string)
-            {
-                if (lua_call_args == String || lua_call_args == NumberOrString)
-                {
-                    lua_pushlstring(L, arg_as_string->data, arg_as_string->size);
-                    continue;
-                }
-                goto RET;
-            }
-
-            goto RET;
-        }
-
-        {
-
-            int r = lua_pcall(L, args.size, 1, 1);
-
-            if (r == 0)
-            {
-                if (lua_type(L, -1) == LUA_TNUMBER)
-                    result = lua_tonumber(L, -1);
-                else if (lua_type(L, -1) == LUA_TSTRING)
-                {
-                    size_t l;
-                    const char *str = lua_tolstring(L, -1, &l);
-                    result = copy(allocator, str, l);
-                }
-            }
-        }
-
-    RET:
-        lua_pop(L, lua_gettop(L));
-        lua_close(L);
-
+    auto lua_call_args = getLuaCallArgs(global, global_index);
+    if (lua_call_args == InvalidFunction)
         return result;
-    }
 
-    std::optional<SimplifyResult> AstSimplifier::tryReplaceLuaCall(AstExprCall *expr_call, bool group, simplifyHook hook, void *hook_data)
-    {
-        if (!simplify_lua_calls)
-            goto RET;
+    lua_State* L = luaL_newstate();
+    luaopen_base(L);
+    luaopen_string(L);
+    luaopen_math(L);
+    luaopen_bit32(L);
+    lua_pop(L, lua_gettop(L));
 
-        {
+    lua_getglobal(L, "print"); // error handler
 
-            const char *global = nullptr;
-            const char *index = nullptr;
+    // push target function
+    lua_getglobal(L, global);
+    if (global_index)
+        lua_getfield(L, -1, global_index);
 
-            if (auto func_expr_as_index_name = simplifyToExpr(expr_call->func)->as<AstExprIndexName>())
-            {
-                auto expr_as_global = getRootExpr(func_expr_as_index_name->expr)->as<AstExprGlobal>();
-                if (!expr_as_global)
-                    goto RET;
+    for (size_t i = 0; i < args.size; i++) {
+        auto arg = args.data[i];
+        SimplifyResult arg_simplified = simplify(arg, hook, hook_data);
+        auto arg_as_number = arg_simplified.asNumber();
+        auto arg_as_string = arg_simplified.asString();
 
-                global = expr_as_global->name.value;
-                index = func_expr_as_index_name->index.value;
+        if (arg_as_number) {
+            if (lua_call_args == Number || lua_call_args == NumberOrString) {
+                lua_pushnumber(L, arg_as_number.value());
+                continue;
             }
-            else if (auto func_as_global = simplifyToExpr(expr_call->func)->as<AstExprGlobal>())
-                global = func_as_global->name.value;
-            else
-                goto RET;
-
-            auto result = callLuaFunction(expr_call->args, global, index, hook, hook_data);
-            if (std::holds_alternative<std::monostate>(result))
-                goto RET;
-
-            if (std::holds_alternative<double>(result))
-                return SimplifyResult(this, std::get<double>(result), group);
-            else if (std::holds_alternative<AstArray<char>>(result))
-                return SimplifyResult(this, std::get<AstArray<char>>(result), group);
-        }
-
-    RET:
-        return std::nullopt;
-    }
-
-    std::optional<SimplifyResult> AstSimplifier::tryReplaceRecordTableIndex(AstExprIndexName *expr_index_name, bool group, simplifyHook hook, void *hook_data)
-    {
-        if (!record_table_replace_visitor)
             goto RET;
-
-        {
-
-            auto expr_as_local = getRootExpr(expr_index_name->expr)->as<AstExprLocal>();
-            if (!(expr_as_local && expr_as_local->local == record_table_replace_visitor->arg_local))
-                goto RET;
-
-            if (record_table_replace_visitor->key_to_expr_map.find(expr_index_name->index.value) == record_table_replace_visitor->key_to_expr_map.end())
-                goto RET;
-
-            return simplify(record_table_replace_visitor->key_to_expr_map.at(expr_index_name->index.value), hook, hook_data);
         }
-    RET:
-        return std::nullopt;
-    }
-
-    std::optional<SimplifyResult> AstSimplifier::tryReplaceListTableIndex(AstExprIndexExpr *expr_index_expr, bool group, simplifyHook hook, void *hook_data)
-    {
-        if (!list_table_replace_visitor)
-            goto RET;
-
-        {
-
-            auto expr_as_local = getRootExpr(expr_index_expr->expr)->as<AstExprLocal>();
-            auto index_as_number_optional = simplify(expr_index_expr->index, hook, hook_data).asNumber();
-            if (!(expr_as_local && expr_as_local->local == list_table_replace_visitor->arg_local && index_as_number_optional))
-                goto RET;
-
-            double index_as_number = index_as_number_optional.value();
-            if (index_as_number < 1 || index_as_number > list_table_replace_visitor->index_to_expr_map.size())
-                goto RET;
-
-            return simplify(list_table_replace_visitor->index_to_expr_map.at(index_as_number), hook, hook_data);
-        }
-
-    RET:
-        return std::nullopt;
-    }
-
-    std::optional<SimplifyResult> AstSimplifier::tryReplaceSimpleAnonymousFunctionCall(AstExprCall *expr_call, bool group, simplifyHook hook, void *hook_data)
-    {
-        auto func = simplify(getRootExpr(expr_call->func, false), hook, hook_data).toExpr()->as<AstExprFunction>();
-        if (!func)
-            goto RET;
-
-        {
-
-            auto func_body = func->body->body;
-            if (func_body.size == 1)
-            {
-                if (auto stat_as_return = func_body.data[0]->as<AstStatReturn>())
-                {
-                    auto determinable_list = getDeterminableList(stat_as_return->list);
-                    if (!determinable_list)
-                        goto RET;
-
-                    size_t count = determinable_list->size();
-                    if (count == 0)
-                        return simplify(allocator.alloc<AstExprConstantNil>(Location()));
-
-                    if (count != 1)
-                        goto RET;
-
-                    return simplify(determinable_list.value()[0], hook, hook_data);
-                }
+        if (arg_as_string) {
+            if (lua_call_args == String || lua_call_args == NumberOrString) {
+                lua_pushlstring(L, arg_as_string->data, arg_as_string->size);
+                continue;
             }
+            goto RET;
         }
-    RET:
-        return std::nullopt;
+
+        goto RET;
     }
 
-    std::optional<AstExprBinary::Op> inverseBinaryOp(AstExprBinary::Op op)
     {
-        switch (op)
-        {
+
+    int r = lua_pcall(L, args.size, 1, 1);
+
+    if (r == 0) {
+        if (lua_type(L, -1) == LUA_TNUMBER)
+            result = lua_tonumber(L, -1);
+        else if (lua_type(L, -1) == LUA_TSTRING) {
+            size_t l;
+            const char* str = lua_tolstring(L, -1, &l);
+            result = copy(allocator, str, l);
+        }
+    }
+
+    }
+
+RET:
+    lua_pop(L, lua_gettop(L));
+    lua_close(L);
+
+    return result;
+}
+
+std::optional<SimplifyResult> AstSimplifier::tryReplaceLuaCall(AstExprCall* expr_call, bool group, simplifyHook hook, void* hook_data) {
+    if (!simplify_lua_calls)
+        goto RET;
+
+    {
+
+    const char* global = nullptr;
+    const char* index = nullptr;
+
+    if (auto func_expr_as_index_name = simplifyToExpr(expr_call->func)->as<AstExprIndexName>()) {
+        auto expr_as_global = getRootExpr(func_expr_as_index_name->expr)->as<AstExprGlobal>();
+        if (!expr_as_global)
+            goto RET;
+
+        global = expr_as_global->name.value;
+        index = func_expr_as_index_name->index.value;
+    } else if (auto func_as_global = simplifyToExpr(expr_call->func)->as<AstExprGlobal>())
+        global = func_as_global->name.value;
+    else
+        goto RET;
+
+    auto result = callLuaFunction(expr_call->args, global, index, hook, hook_data);
+    if (std::holds_alternative<std::monostate>(result))
+        goto RET;
+
+    if (std::holds_alternative<double>(result))
+        return SimplifyResult(this, std::get<double>(result), group);
+    else if (std::holds_alternative<AstArray<char>>(result))
+        return SimplifyResult(this, std::get<AstArray<char>>(result), group);
+
+    }
+
+RET:
+    return std::nullopt;
+}
+
+std::optional<SimplifyResult> AstSimplifier::tryReplaceRecordTableIndex(AstExprIndexName* expr_index_name, bool group, simplifyHook hook, void* hook_data) {
+    if (!record_table_replace_visitor)
+        goto RET;
+
+    {
+
+    auto expr_as_local = getRootExpr(expr_index_name->expr)->as<AstExprLocal>();
+    if (!(expr_as_local && expr_as_local->local == record_table_replace_visitor->arg_local))
+        goto RET;
+
+    if (record_table_replace_visitor->key_to_expr_map.find(expr_index_name->index.value) == record_table_replace_visitor->key_to_expr_map.end())
+        goto RET;
+
+    return simplify(record_table_replace_visitor->key_to_expr_map.at(expr_index_name->index.value), hook, hook_data);
+
+    }
+RET:
+    return std::nullopt;
+}
+
+std::optional<SimplifyResult> AstSimplifier::tryReplaceListTableIndex(AstExprIndexExpr* expr_index_expr, bool group, simplifyHook hook, void* hook_data) {
+    if (!list_table_replace_visitor)
+        goto RET;
+
+    {
+
+    auto expr_as_local = getRootExpr(expr_index_expr->expr)->as<AstExprLocal>();
+    auto index_as_number_optional = simplify(expr_index_expr->index, hook, hook_data).asNumber();
+    if (!(expr_as_local && expr_as_local->local == list_table_replace_visitor->arg_local && index_as_number_optional))
+        goto RET;
+
+    double index_as_number = index_as_number_optional.value();
+    if (index_as_number < 1 || index_as_number > list_table_replace_visitor->index_to_expr_map.size())
+        goto RET;
+
+    return simplify(list_table_replace_visitor->index_to_expr_map.at(index_as_number), hook, hook_data);
+
+    }
+
+RET:
+    return std::nullopt;
+}
+
+std::optional<SimplifyResult> AstSimplifier::tryReplaceSimpleAnonymousFunctionCall(AstExprCall* expr_call, bool group, simplifyHook hook, void* hook_data) {
+    auto func = simplify(getRootExpr(expr_call->func, false), hook, hook_data).toExpr()->as<AstExprFunction>();
+    if (!func)
+        goto RET;
+
+    {
+
+    auto func_body = func->body->body;
+    if (func_body.size == 1) {
+        if (auto stat_as_return = func_body.data[0]->as<AstStatReturn>()) {
+            auto determinable_list = getDeterminableList(stat_as_return->list);
+            if (!determinable_list)
+                goto RET;
+
+            size_t count = determinable_list->size();
+            if (count == 0)
+                return simplify(allocator.alloc<AstExprConstantNil>(Location()));
+
+            if (count != 1)
+                goto RET;
+
+            return simplify(determinable_list.value()[0], hook, hook_data);
+        }
+    }
+
+    }
+RET:
+    return std::nullopt;
+}
+
+std::optional<AstExprBinary::Op> inverseBinaryOp(AstExprBinary::Op op) {
+    switch (op) {
         case AstExprBinary::CompareNe:
             return AstExprBinary::CompareEq;
         case AstExprBinary::CompareEq:
@@ -1182,122 +1205,98 @@ namespace LuauFormat
             return AstExprBinary::CompareLt;
         default:
             break;
-        }
-        return std::nullopt;
     }
+    return std::nullopt;
+}
 
-    static constexpr unsigned alphabet_difference = 'a' - 'A';
+static constexpr unsigned alphabet_difference = 'a' - 'A';
 
-    static bool isCharAlphaUnderscore(char ch)
-    {
-        if (ch == '_')
-            return true;
+static bool isCharAlphaUnderscore(char ch) {
+    if (ch == '_') return true;
 
-        if (ch > 'Z')
-            ch -= alphabet_difference;
-        return ch >= 'A' && ch <= 'Z';
-    }
-    static bool isCharDigit(char ch)
-    {
-        return ch >= '0' && ch <= '9';
-    }
+    if (ch > 'Z') ch -= alphabet_difference;
+    return ch >= 'A' && ch <= 'Z';
+}
+static bool isCharDigit(char ch) {
+    return ch >= '0' && ch <= '9';
+}
 
-    static bool isCharArrayClean(AstArray<char> &str)
-    {
-        bool valid = str.size && isCharAlphaUnderscore(str.data[0]);
-        if (!valid)
+static bool isCharArrayClean(AstArray<char>& str) {
+    bool valid = str.size && isCharAlphaUnderscore(str.data[0]);
+    if (!valid)
+        return false;
+
+    for (auto it = str.begin(); it != str.end(); it++) {
+        if (!(isCharAlphaUnderscore(*it) || isCharDigit(*it)))
             return false;
+    }
+    return true;
+}
 
-        for (auto it = str.begin(); it != str.end(); it++)
-        {
-            if (!(isCharAlphaUnderscore(*it) || isCharDigit(*it)))
-                return false;
-        }
-        return true;
+static bool canExprPrecedeIndexName(AstExpr* expr) {
+    return expr->is<AstExprGroup>() || expr->is<AstExprConstantNil>() ||
+        expr->is<AstExprConstantBool>() || expr->is<AstExprConstantNumber>() ||
+        expr->is<AstExprLocal>() || expr->is<AstExprGlobal>() ||
+        expr->is<AstExprCall>() || expr->is<AstExprIndexName>() ||
+        expr->is<AstExprIndexExpr>();
+}
+
+SimplifyResult AstSimplifier::simplify(AstExpr* expr, simplifyHook hook, void* hook_data) {
+    bool group = expr->is<AstExprGroup>();
+
+    if (disabled)
+        goto RET;
+
+    expr = getRootExpr(expr, safe);
+
+    if (expr->is<AstExprGlobal>() || expr->is<AstExprLocal>())
+        group = false;
+
+    if (hook) {
+        auto result = hook(this, allocator, expr, group, hook_data);
+        if (result)
+            return result.value();
     }
 
-    static bool canExprPrecedeIndexName(AstExpr *expr)
-    {
-        return expr->is<AstExprGroup>() || expr->is<AstExprConstantNil>() ||
-               expr->is<AstExprConstantBool>() || expr->is<AstExprConstantNumber>() ||
-               expr->is<AstExprLocal>() || expr->is<AstExprGlobal>() ||
-               expr->is<AstExprCall>() || expr->is<AstExprIndexName>() ||
-               expr->is<AstExprIndexExpr>();
-    }
-
-    SimplifyResult AstSimplifier::simplify(AstExpr *expr, simplifyHook hook, void *hook_data)
-    {
-        bool group = expr->is<AstExprGroup>();
-
-        if (disabled)
-            goto RET;
-
-        expr = getRootExpr(expr, safe);
-
-        if (expr->is<AstExprGlobal>() || expr->is<AstExprLocal>())
-            group = false;
-
-        if (hook)
-        {
-            auto result = hook(this, allocator, expr, group, hook_data);
-            if (result)
-                return result.value();
-        }
-
-#define try(func, expr)                                   \
-    {                                                     \
+    #define try(func, expr) {\
         auto result = func(expr, group, hook, hook_data); \
-        if (result)                                       \
-            return result.value();                        \
+        if (result) \
+            return result.value(); \
     }
 
-        if (auto expr_constant_nil = expr->as<AstExprConstantNil>())
-        {
-            return SimplifyResult(this, expr_constant_nil, group);
-        }
-        else if (auto expr_constant_bool = expr->as<AstExprConstantBool>())
-        {
-            return SimplifyResult(this, expr_constant_bool->value, group);
-        }
-        else if (auto expr_constant_number = expr->as<AstExprConstantNumber>())
-        {
-            return SimplifyResult(this, expr_constant_number->value, group);
-        }
-        else if (auto expr_constant_string = expr->as<AstExprConstantString>())
-        {
-            return SimplifyResult(this, expr_constant_string->value, group);
-        }
-        else if (auto expr_unary = expr->as<AstExprUnary>())
-        {
-            auto expr_simplified = simplify(expr_unary->expr, hook, hook_data);
-            switch (expr_unary->op)
-            {
-            case AstExprUnary::Op::Not:
-            {
-                switch (expr_simplified.type)
-                {
-                case SimplifyResult::Nil:
-                    return SimplifyResult(this, true, group);
-                case SimplifyResult::Bool:
-                    return SimplifyResult(this, !expr_simplified.bool_value, group);
-                case SimplifyResult::Number:
-                case SimplifyResult::String:
-                    return SimplifyResult(this, false, group);
-                case SimplifyResult::Other:
-                {
-                    auto is_truthy = isExpressionTruthy(expr_simplified.other_value, assume_globals);
-                    if (is_truthy < 2)
-                        return SimplifyResult(this, !is_truthy, group);
-                    else if (auto expr_binary = expr_simplified.toExpr()->as<AstExprBinary>())
-                    {
-                        auto new_op = inverseBinaryOp(expr_binary->op);
-                        if (!new_op)
-                            goto UNARY_OTHER_CASE_EXIT;
-                        return SimplifyResult(this, allocator.alloc<AstExprBinary>(expr_binary->location, new_op.value(), expr_binary->left, expr_binary->right));
+    if (auto expr_constant_nil = expr->as<AstExprConstantNil>()) {
+        return SimplifyResult(this, expr_constant_nil, group);
+    } else if (auto expr_constant_bool = expr->as<AstExprConstantBool>()) {
+        return SimplifyResult(this, expr_constant_bool->value, group);
+    } else if (auto expr_constant_number = expr->as<AstExprConstantNumber>()) {
+        return SimplifyResult(this, expr_constant_number->value, group);
+    } else if (auto expr_constant_string = expr->as<AstExprConstantString>()) {
+        return SimplifyResult(this, expr_constant_string->value, group);
+    } else if (auto expr_unary = expr->as<AstExprUnary>()) {
+        auto expr_simplified = simplify(expr_unary->expr, hook, hook_data);
+        switch (expr_unary->op) {
+            case AstExprUnary::Op::Not: {
+                switch (expr_simplified.type) {
+                    case SimplifyResult::Nil:
+                        return SimplifyResult(this, true, group);
+                    case SimplifyResult::Bool:
+                        return SimplifyResult(this, !expr_simplified.bool_value, group);
+                    case SimplifyResult::Number:
+                    case SimplifyResult::String:
+                        return SimplifyResult(this, false, group);
+                    case SimplifyResult::Other: {
+                        auto is_truthy = isExpressionTruthy(expr_simplified.other_value, assume_globals);
+                        if (is_truthy < 2)
+                            return SimplifyResult(this, !is_truthy, group);
+                        else if (auto expr_binary = expr_simplified.toExpr()->as<AstExprBinary>()) {
+                            auto new_op = inverseBinaryOp(expr_binary->op);
+                            if (!new_op)
+                                goto UNARY_OTHER_CASE_EXIT;
+                            return SimplifyResult(this, allocator.alloc<AstExprBinary>(expr_binary->location, new_op.value(), expr_binary->left, expr_binary->right));
+                        }
+                    UNARY_OTHER_CASE_EXIT:
+                        break;
                     }
-                UNARY_OTHER_CASE_EXIT:
-                    break;
-                }
                 }
                 break;
             }
@@ -1306,105 +1305,94 @@ namespace LuauFormat
                     return SimplifyResult(this, -expr_simplified.number_value, group);
                 break;
             case AstExprUnary::Op::Len:
-                switch (expr_simplified.type)
-                {
-                case SimplifyResult::String:
-                    return SimplifyResult(this, (double)expr_simplified.string_value.size, group);
-                case SimplifyResult::Other:
-                    if (auto expr_table = expr_simplified.other_value->as<AstExprTable>())
-                    {
-                        auto size = getTableSize(expr_table);
-                        if (size.has_value())
-                            return SimplifyResult(this, (double)size.value(), group);
-                    }
-                    break;
-                default:
-                    break;
+                switch (expr_simplified.type) {
+                    case SimplifyResult::String:
+                        return SimplifyResult(this, (double) expr_simplified.string_value.size, group);
+                    case SimplifyResult::Other:
+                        if (auto expr_table = expr_simplified.other_value->as<AstExprTable>()) {
+                            auto size = getTableSize(expr_table);
+                            if (size.has_value())
+                                return SimplifyResult(this, (double) size.value(), group);
+                        }
+                        break;
+                    default:
+                        break;
                 }
                 break;
+        }
+    } else if (auto expr_binary = expr->as<AstExprBinary>()) {
+        auto left_simplified = simplify(expr_binary->left, hook, hook_data);
+        auto right_simplified = simplify(expr_binary->right, hook, hook_data);
+
+        auto left_type = left_simplified.type;
+        auto right_type = right_simplified.type;
+
+        double left_number = 0;
+        double right_number = 0;
+        bool left_number_valid = false;
+        bool right_number_valid = false;
+
+        {
+            auto optional = left_simplified.asNumber();
+            if (optional.has_value()) {
+                left_number = optional.value();
+                left_number_valid = true;
+            }
+            optional = right_simplified.asNumber();
+            if (optional.has_value()) {
+                right_number = optional.value();
+                right_number_valid = true;
             }
         }
-        else if (auto expr_binary = expr->as<AstExprBinary>())
+
+        AstArray<char> left_string{};
+        AstArray<char> right_string{};
+        bool left_string_valid = false;
+        bool right_string_valid = false;
+
         {
-            auto left_simplified = simplify(expr_binary->left, hook, hook_data);
-            auto right_simplified = simplify(expr_binary->right, hook, hook_data);
-
-            auto left_type = left_simplified.type;
-            auto right_type = right_simplified.type;
-
-            double left_number = 0;
-            double right_number = 0;
-            bool left_number_valid = false;
-            bool right_number_valid = false;
-
-            {
-                auto optional = left_simplified.asNumber();
-                if (optional.has_value())
-                {
-                    left_number = optional.value();
-                    left_number_valid = true;
-                }
-                optional = right_simplified.asNumber();
-                if (optional.has_value())
-                {
-                    right_number = optional.value();
-                    right_number_valid = true;
-                }
+            auto optional = left_simplified.asString();
+            if (optional.has_value()) {
+                left_string = optional.value();
+                left_string_valid = true;
             }
-
-            AstArray<char> left_string{};
-            AstArray<char> right_string{};
-            bool left_string_valid = false;
-            bool right_string_valid = false;
-
-            {
-                auto optional = left_simplified.asString();
-                if (optional.has_value())
-                {
-                    left_string = optional.value();
-                    left_string_valid = true;
-                }
-                optional = right_simplified.asString();
-                if (optional.has_value())
-                {
-                    right_string = optional.value();
-                    right_string_valid = true;
-                }
+            optional = right_simplified.asString();
+            if (optional.has_value()) {
+                right_string = optional.value();
+                right_string_valid = true;
             }
+        }
 
-            const bool both_number_valid = left_number_valid && right_number_valid;
-            const bool both_string_valid = left_string_valid && right_string_valid;
+        const bool both_number_valid = left_number_valid && right_number_valid;
+        const bool both_string_valid = left_string_valid && right_string_valid;
 
-            const bool both_have_same_type = left_type == right_type;
+        const bool both_have_same_type = left_type == right_type;
 
-            // const bool left_is_other = left_type == SimplifyResult::Other;
-            // const bool right_is_other = right_type == SimplifyResult::Other;
-            // const bool can_compare_equality = (!left_is_other && !right_is_other);
+        // const bool left_is_other = left_type == SimplifyResult::Other;
+        // const bool right_is_other = right_type == SimplifyResult::Other;
+        // const bool can_compare_equality = (!left_is_other && !right_is_other);
 
-            const bool can_compare_equality = isExpressionTruthy(left_simplified.toExpr(), assume_globals) < 2 && isExpressionTruthy(right_simplified.toExpr(), assume_globals) < 2;
+        const bool can_compare_equality = isExpressionTruthy(left_simplified.toExpr(), assume_globals) < 2 && isExpressionTruthy(right_simplified.toExpr(), assume_globals) < 2;
 
-#define genericNumberCase(op, value)                   \
-    case AstExprBinary::op:                            \
-        if (both_number_valid)                         \
-            return SimplifyResult(this, value, group); \
-        break;
-#define simpleMathCase(op, operation) genericNumberCase(op, left_number operation right_number)
+        #define genericNumberCase(op, value) case AstExprBinary::op: \
+            if (both_number_valid) \
+                return SimplifyResult(this, value, group); \
+            break;
+        #define simpleMathCase(op, operation) genericNumberCase(op, left_number operation right_number)
 
-            auto &binary_op = expr_binary->op;
-            switch (binary_op)
-            {
+        auto& binary_op = expr_binary->op;
+        switch (binary_op) {
             simpleMathCase(Add, +)
-                simpleMathCase(Sub, -)
-                    simpleMathCase(Mul, *)
-                        simpleMathCase(Div, /)
+            simpleMathCase(Sub, -)
+            simpleMathCase(Mul, *)
+            simpleMathCase(Div, /)
 
-                            genericNumberCase(FloorDiv, floor(left_number / right_number))
-                                genericNumberCase(Mod, left_number - floor(left_number / right_number) * right_number)
-                                    genericNumberCase(Pow, pow(left_number, right_number))
+            genericNumberCase(FloorDiv, floor(left_number / right_number))
+            genericNumberCase(Mod, left_number - floor(left_number / right_number) * right_number)
+            genericNumberCase(Pow, pow(left_number, right_number))
 
-                                        case AstExprBinary::Concat:
-                if (both_string_valid)
-                {
+            case AstExprBinary::Concat:
+                if (both_string_valid) {
                     auto vector = std::vector<char>();
                     vector.reserve(left_string.size + right_string.size);
 
@@ -1420,59 +1408,51 @@ namespace LuauFormat
             case AstExprBinary::CompareLt:
             case AstExprBinary::CompareLe:
             case AstExprBinary::CompareGt:
-            case AstExprBinary::CompareGe:
-            {
+            case AstExprBinary::CompareGe: {
                 uint8_t equality = 2; // 2 means don't return anything; otherwise it should be 0 for false and 1 for true
 
-                if (both_have_same_type)
-                {
-                    switch (left_type)
-                    {
-                    case SimplifyResult::Nil:
-                        if (binary_op == Luau::AstExprBinary::CompareNe)
-                            equality = false;
-                        else if (binary_op == AstExprBinary::CompareEq)
-                            equality = true;
-                        break;
-                    case SimplifyResult::Bool:
-                        equality = binary_compare_bool_list[binary_op - AstExprBinary::CompareNe](left_simplified.bool_value, right_simplified.bool_value);
-                        break;
-                    case SimplifyResult::Number:
-                        equality = binary_compare_number_list[binary_op - AstExprBinary::CompareNe](left_simplified.number_value, right_simplified.number_value);
-                        break;
-                    case SimplifyResult::String:
-                        equality = binary_compare_string_list[binary_op - AstExprBinary::CompareNe](left_simplified.string_value, right_simplified.string_value);
-                        break;
-                    default:
-                        break;
+                if (both_have_same_type) {
+                    switch (left_type) {
+                        case SimplifyResult::Nil:
+                            if (binary_op == Luau::AstExprBinary::CompareNe)
+                                equality = false;
+                            else if (binary_op == AstExprBinary::CompareEq)
+                                equality = true;
+                            break;
+                        case SimplifyResult::Bool:
+                            equality = binary_compare_bool_list[binary_op - AstExprBinary::CompareNe](left_simplified.bool_value, right_simplified.bool_value);
+                            break;
+                        case SimplifyResult::Number:
+                            equality = binary_compare_number_list[binary_op - AstExprBinary::CompareNe](left_simplified.number_value, right_simplified.number_value);
+                            break;
+                        case SimplifyResult::String:
+                            equality = binary_compare_string_list[binary_op - AstExprBinary::CompareNe](left_simplified.string_value, right_simplified.string_value);
+                            break;
+                        default:
+                            break;
                     }
-                }
-                else if (can_compare_equality)
-                {
+                } else if (can_compare_equality) {
                     if (binary_op == Luau::AstExprBinary::CompareNe)
                         equality = true;
                     else if (binary_op == AstExprBinary::CompareEq)
                         equality = false;
                 }
 
-                if (equality < 2)
-                {
-                    return SimplifyResult(this, (bool)equality, group);
+                if (equality < 2) {
+                    return SimplifyResult(this, (bool) equality, group);
                 }
                 break;
             }
 
             case AstExprBinary::And:
-                if (can_compare_equality)
-                {
+                if (can_compare_equality) {
                     int left_truthy = isExpressionTruthy(left_simplified.toExpr(), assume_globals);
                     if (left_truthy < 2)
                         return left_truthy ? right_simplified : left_simplified;
                 }
                 break;
             case AstExprBinary::Or:
-                if (can_compare_equality)
-                {
+                if (can_compare_equality) {
                     int left_truthy = isExpressionTruthy(left_simplified.toExpr(), assume_globals);
                     if (left_truthy < 2)
                         return left_truthy ? left_simplified : right_simplified;
@@ -1481,52 +1461,39 @@ namespace LuauFormat
 
             case AstExprBinary::Op__Count:
                 break;
+        }
+
+        #undef simpleMathCase
+        #undef genericNumberCase
+    } else if (auto expr_call = expr->as<AstExprCall>()) {
+        try(tryReplaceLuaCall, expr_call)
+        try(tryReplaceSimpleAnonymousFunctionCall, expr_call)
+    } else if (auto expr_index_name = expr->as<AstExprIndexName>()) {
+        try(tryReplaceRecordTableIndex, expr_index_name)
+    } else if (auto expr_index_expr = expr->as<AstExprIndexExpr>()) {
+        try(tryReplaceListTableIndex, expr_index_expr)
+
+        if (optimizations) {
+            auto index_simplified = simplify(expr_index_expr->index, hook, hook_data);
+            auto index_string_optional = index_simplified.asString();
+            if (index_string_optional && isCharArrayClean(*index_string_optional)) {
+                auto expr_expr = simplify(expr_index_expr->expr, hook, hook_data).toExpr();
+                if (!canExprPrecedeIndexName(expr_expr))
+                    expr_expr = allocator.alloc<AstExprGroup>(expr_expr->location, expr_expr);
+                // NOTE: opPosition is not accurate
+                return SimplifyResult(this, allocator.alloc<AstExprIndexName>(expr_index_expr->location, expr_expr, name_table.getOrAdd(index_string_optional->data), expr_index_expr->index->location, expr_index_expr->location.end, '.'));
             }
-
-#undef simpleMathCase
-#undef genericNumberCase
         }
-        else if (auto expr_call = expr->as<AstExprCall>())
-        {
-            try
-                (tryReplaceLuaCall, expr_call)
-                try
-                    (tryReplaceSimpleAnonymousFunctionCall, expr_call)
-        }
-        else if (auto expr_index_name = expr->as<AstExprIndexName>())
-        {
-            try
-                (tryReplaceRecordTableIndex, expr_index_name)
-        }
-        else if (auto expr_index_expr = expr->as<AstExprIndexExpr>())
-        {
-            try
-                (tryReplaceListTableIndex, expr_index_expr)
-
-                    if (optimizations)
-                {
-                    auto index_simplified = simplify(expr_index_expr->index, hook, hook_data);
-                    auto index_string_optional = index_simplified.asString();
-                    if (index_string_optional && isCharArrayClean(*index_string_optional))
-                    {
-                        auto expr_expr = simplify(expr_index_expr->expr, hook, hook_data).toExpr();
-                        if (!canExprPrecedeIndexName(expr_expr))
-                            expr_expr = allocator.alloc<AstExprGroup>(expr_expr->location, expr_expr);
-                        // NOTE: opPosition is not accurate
-                        return SimplifyResult(this, allocator.alloc<AstExprIndexName>(expr_index_expr->location, expr_expr, name_table.getOrAdd(index_string_optional->data), expr_index_expr->index->location, expr_index_expr->location.end, '.'));
-                    }
-                }
-        }
-
-#undef try
-
-    RET:
-        return SimplifyResult(this, expr, group);
     }
 
-    AstExpr *AstSimplifier::simplifyToExpr(AstExpr *expr, simplifyHook hook, void *hook_data)
-    {
-        return simplify(expr, hook, hook_data).toExpr();
-    }
+    #undef try
+
+RET:
+    return SimplifyResult(this, expr, group);
+}
+
+AstExpr* AstSimplifier::simplifyToExpr(AstExpr* expr, simplifyHook hook, void* hook_data) {
+    return simplify(expr, hook, hook_data).toExpr();
+}
 
 }; // namespace LuauFormat
