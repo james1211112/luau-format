@@ -502,11 +502,19 @@ std::optional<SimpleAssign> getSimpleAssign(AstStat* stat, bool can_have_no_valu
 
         auto& local = var->local;
 
+<<<<<<< HEAD
         return SimpleAssign{
     local->name.value,
     local,
     has_value ? value_list.data[0] : nullptr
 };
+=======
+return SimpleAssign{
+            .var = local->name.value,
+            .var_local = local,
+            .value = has_value ? value_list.data[0] : nullptr
+        };
+>>>>>>> dd7a0e7 (fixed formatting)
     } else if (auto stat_as_local = stat->as<AstStatLocal>()) {
         auto& var_list = stat_as_local->vars;
         auto& value_list = stat_as_local->values;
@@ -525,11 +533,19 @@ std::optional<SimpleAssign> getSimpleAssign(AstStat* stat, bool can_have_no_valu
 
         auto& local = var_list.data[0];
 
+<<<<<<< HEAD
         return SimpleAssign{
     local->name.value,
     local,
     has_value ? value_list.data[0] : nullptr
 };
+=======
+return SimpleAssign{
+            .var = local->name.value,
+            .var_local = local,
+            .value = has_value ? value_list.data[0] : nullptr
+        };
+>>>>>>> dd7a0e7 (fixed formatting)
     }
 
     return std::nullopt;
