@@ -85,7 +85,7 @@ if [ ! -d "$luaubuilddir" ]; then
     mkdir $luaubuilddir
     cd $luaubuilddir
     echo "building luau..."
-    $compiler -std=c++17 -g -O2 -c $LUAU_SOURCES_BUILD $LUAU_INCLUDE_BUILD
+    $compiler -std=c++20 -g -O2 -c $LUAU_SOURCES_BUILD $LUAU_INCLUDE_BUILD
     ar rcs libluau.a *.o
     echo "luau built!"
     cd ../../..
@@ -99,7 +99,7 @@ mkdir $luauformatbuilddir
 
 echo "building luau-format..."
 pushd $luauformatbuilddir
-$compiler -std=c++17 -g -Wall $RELEASE_FLAGS $ASAN_FLAGS -c ../../../src/* -I../../../include $LUAU_INCLUDE_BUILD -L../Luau -lluau
+$compiler -std=c++20 -g -Wall $RELEASE_FLAGS $ASAN_FLAGS -c ../../../src/* -I../../../include $LUAU_INCLUDE_BUILD -L../Luau -lluau
 ar rcs libluau-format.a *.o
 popd
 echo "luau-format built"
@@ -109,11 +109,11 @@ if [[ $TEST ]]; then
     if [[ ! $TEST_DEFINES = "" ]]; then
         echo "NOTE: tests will fail due to --failtests being passed"
     fi
-    $compiler -std=c++17 $ASAN_FLAGS $STATIC_FLAGS -o $outfile -g -Wall tests/* -Itests -Iinclude $LUAU_INCLUDE $TEST_DEFINES -L$luauformatbuilddir -lluau-format -L$luaubuilddir -lluau
+    $compiler -std=c++20 $ASAN_FLAGS $STATIC_FLAGS -o $outfile -g -Wall tests/* -Itests -Iinclude $LUAU_INCLUDE $TEST_DEFINES -L$luauformatbuilddir -lluau-format -L$luaubuilddir -lluau
     echo "tests built to $outfile"
     exit
 fi
 
 echo "buildling cli..."
-$compiler -std=c++17 -g -Wall $RELEASE_FLAGS $ASAN_FLAGS $STATIC_FLAGS -o $outfile main.cpp -Iinclude $LUAU_INCLUDE -L$luauformatbuilddir -lluau-format -L$luaubuilddir -lluau
+$compiler -std=c++20 -g -Wall $RELEASE_FLAGS $ASAN_FLAGS $STATIC_FLAGS -o $outfile main.cpp -Iinclude $LUAU_INCLUDE -L$luauformatbuilddir -lluau-format -L$luaubuilddir -lluau
 echo "cli built to $outfile"
