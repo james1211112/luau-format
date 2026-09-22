@@ -85,7 +85,7 @@ if [ ! -d "$luaubuilddir" ]; then
     mkdir $luaubuilddir
     cd $luaubuilddir
     echo "building luau..."
-    $compiler -std=c++20 -g -O2 -c $LUAU_SOURCES_BUILD $LUAU_INCLUDE_BUILD
+    $compiler -std=c++17 -g -O2 -c $LUAU_SOURCES_BUILD $LUAU_INCLUDE_BUILD
     ar rcs libluau.a *.o
     echo "luau built!"
     cd ../../..
